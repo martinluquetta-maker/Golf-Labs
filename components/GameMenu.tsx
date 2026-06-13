@@ -202,14 +202,37 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 <p className="text-[10px] text-[#7a7065] font-semibold leading-normal">
                   Backup your 60-hole progress and gold coins in real-time.
                 </p>
-                <button
-                  type="button"
-                  onClick={onLogin}
-                  className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 text-[11px]"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Sign In with Google</span>
-                </button>
+                {typeof window !== 'undefined' && window.self !== window.top ? (
+                  <div className="space-y-1.5 border border-[#db5641]/20 bg-[#db5641]/5 p-2 rounded-xl mt-1">
+                    <p className="text-[9px] text-[#db5641] font-bold leading-normal">
+                      ⚠️ Playing in the preview panel? Browser policies block Google sign-in inside iframes.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="w-full bg-[#6ca750] hover:bg-[#5b9042] text-white py-1.5 px-2.5 rounded-lg font-bold flex items-center justify-center gap-1 transition-all active:scale-95 text-[10px]"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Open in New Tab & Sign In</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onLogin}
+                      className="w-full text-center text-[9px] text-[#7a7065] hover:text-[#3d312a] font-semibold underline block pt-0.5"
+                    >
+                      Try signing in here anyway
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onLogin}
+                    className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 text-[11px]"
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>Sign In with Google</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
