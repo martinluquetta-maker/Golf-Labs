@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import config from '../firebase-applet-config.json';
 
 export enum OperationType {
   CREATE = 'create',
@@ -46,11 +47,6 @@ export async function getFirebaseServices() {
   }
 
   try {
-    const response = await fetch('/firebase-applet-config.json');
-    if (!response.ok) {
-      return { db: null, auth: null, provider: null, configured: false };
-    }
-    const config = await response.json();
     if (!config || !config.apiKey) {
       return { db: null, auth: null, provider: null, configured: false };
     }
@@ -73,7 +69,7 @@ export async function getFirebaseServices() {
       configured: true
     };
   } catch (err) {
-    console.warn("Firebase configuration file not loaded or readable yet.", err);
+    console.warn("Firebase configuration not loaded or readable yet.", err);
     return { db: null, auth: null, provider: null, configured: false };
   }
 }
