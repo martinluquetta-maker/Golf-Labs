@@ -18,6 +18,14 @@ import { getPath } from "./utils/path";
 import InfoDialog from './components/builds/infoDialog.tsx';
 import { GameMenu } from './components/GameMenu';
 import { calculateCoinsEarned } from './components/BallStoreData';
+import { 
+  getFirebaseServices, 
+  authenticateWithGoogle, 
+  logOutFromGoogle, 
+  loadUserProfile, 
+  saveUserProfile 
+} from './services/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -65,6 +73,11 @@ const App: React.FC = () => {
   const [nextLevelLoading, setNextLevelLoading] = useState(false);
   const [caddyDismissed, setCaddyDismissed] = useState(false);
 
+  // Firebase auth & sync states
+  const [user, setUser] = useState<any>(null);
+  const [firebaseConfigured, setFirebaseConfigured] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'pending'>('pending');
+
   const currentLevel = LEVELS[gameState.currentLevelIndex];
   const totalPar = LEVELS.reduce((acc, l) => acc + l.par, 0);
 
@@ -85,6 +98,130 @@ const App: React.FC = () => {
     preloadCache(audioFiles);
   }, []);
 
+  // Firebase Init & Auth state hooks
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    const initAndListen = async () => {
+      const { auth, configured } = await getFirebaseServices();
+      setFirebaseConfigured(configured);
+      
+      if (configured && auth) {
+        setSyncStatus('synced');
+        unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+          setUser(currentUser);
+          if (currentUser) {
+            setSyncStatus('syncing');
+            try {
+              const cloudProgress = await loadUserProfile(currentUser.uid);
+              if (cloudProgress) {
+                // Synthesize local and cloud progress
+                setGameState(prev => ({
+                  ...prev,
+                  currentLevelIndex: cloudProgress.currentLevelIndex ?? prev.currentLevelIndex,
+                  totalScore: cloudProgress.totalScore ?? prev.totalScore,
+                  points: cloudProgress.points ?? prev.points,
+                  bestScores: cloudProgress.bestScores ?? prev.bestScores,
+                  resetUnlocked: cloudProgress.resetUnlocked ?? prev.resetUnlocked,
+                  coins: cloudProgress.coins ?? prev.coins,
+                  unlockedBallIds: cloudProgress.unlockedBallIds ?? prev.unlockedBallIds,
+                  equippedBallId: cloudProgress.equippedBallId ?? prev.equippedBallId,
+                }));
+              } else {
+                // Populate new signups with current local state
+                await saveUserProfile(currentUser.uid, {
+                  currentLevelIndex: gameState.currentLevelIndex,
+                  totalScore: gameState.totalScore,
+                  points: gameState.points,
+                  bestScores: gameState.bestScores,
+                  resetUnlocked: gameState.resetUnlocked,
+                  coins: gameState.coins ?? 100,
+                  unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
+                  equippedBallId: gameState.equippedBallId ?? 'classic_white',
+                });
+              }
+              setSyncStatus('synced');
+            } catch (err) {
+              console.error("Cloud synchronization load error:", err);
+              setSyncStatus('offline');
+            }
+          } else {
+            setSyncStatus('synced');
+          }
+        });
+      } else {
+        setSyncStatus('offline');
+      }
+    };
+
+    initAndListen();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  // Sync to database debounced on gameState changes
+  useEffect(() => {
+    if (!firebaseConfigured || !user) return;
+
+    const syncToDatabase = async () => {
+      setSyncStatus('syncing');
+      try {
+        await saveUserProfile(user.uid, {
+          currentLevelIndex: gameState.currentLevelIndex,
+          totalScore: gameState.totalScore,
+          points: gameState.points,
+          bestScores: gameState.bestScores,
+          resetUnlocked: gameState.resetUnlocked,
+          coins: gameState.coins ?? 100,
+          unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
+          equippedBallId: gameState.equippedBallId ?? 'classic_white',
+        });
+        setSyncStatus('synced');
+      } catch (err) {
+        console.error("Cloud synchronization save error:", err);
+        setSyncStatus('offline');
+      }
+    };
+
+    const timer = setTimeout(syncToDatabase, 600);
+    return () => clearTimeout(timer);
+  }, [
+    user,
+    firebaseConfigured,
+    gameState.currentLevelIndex,
+    gameState.totalScore,
+    gameState.points,
+    gameState.bestScores,
+    gameState.resetUnlocked,
+    gameState.coins,
+    gameState.unlockedBallIds,
+    gameState.equippedBallId,
+  ]);
+
+  const handleLogin = async () => {
+    try {
+      setSyncStatus('syncing');
+      const loggedUser = await authenticateWithGoogle();
+      setUser(loggedUser);
+      setSyncStatus('synced');
+    } catch (err) {
+      console.error("Authentication login flow error:", err);
+      setSyncStatus('offline');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logOutFromGoogle();
+      setUser(null);
+    } catch (err) {
+      console.error("Authentication logout flow error:", err);
+    }
+  };
+
+  // Keep localStorage as a resilient offline-first fallback
   useEffect(() => {
     try {
       localStorage.setItem('golf_lab_state', JSON.stringify({
@@ -496,6 +633,11 @@ const App: React.FC = () => {
           equippedBallId={gameState.equippedBallId ?? 'classic_white'}
           onBuyBall={handleBuyBall}
           onEquipBall={handleEquipBall}
+          user={user}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+          firebaseConfigured={firebaseConfigured}
+          syncStatus={syncStatus}
         />
       )}
 

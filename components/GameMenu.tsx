@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { LevelData } from '../types';
 import { LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 
 interface GameMenuProps {
@@ -21,6 +21,11 @@ interface GameMenuProps {
   equippedBallId: string;
   onBuyBall: (id: string, price: number) => void;
   onEquipBall: (id: string) => void;
+  user: any;
+  onLogin: () => Promise<void>;
+  onLogout: () => Promise<void>;
+  firebaseConfigured: boolean;
+  syncStatus: 'synced' | 'syncing' | 'offline' | 'pending';
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -34,6 +39,11 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   equippedBallId,
   onBuyBall,
   onEquipBall,
+  user,
+  onLogin,
+  onLogout,
+  firebaseConfigured,
+  syncStatus,
 }) => {
   const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
@@ -170,6 +180,92 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               </div>
             </div>
           )}
+
+          {/* Google Sync Account Module */}
+          <div className="flex flex-col gap-2 p-4 bg-[#faf6ee]/60 border border-[#3d312a]/10 rounded-2xl text-xs mt-auto">
+            {!firebaseConfigured ? (
+              <div className="space-y-1.5 text-center py-0.5">
+                <div className="flex items-center justify-center gap-1 font-bold text-[#db5641]">
+                  <CloudOff className="w-3.5 h-3.5 shrink-0" />
+                  <span>Cloud Save Offline</span>
+                </div>
+                <p className="text-[10px] text-[#7a7065] font-semibold leading-normal">
+                  To enable Google Cloud Saves, complete the companion <b className="text-[#db5641]">"Set up Firebase"</b> step in your AI Studio dashboard panel.
+                </p>
+              </div>
+            ) : !user ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 font-extrabold text-[#3d312a]">
+                  <Cloud className="w-4 h-4 shrink-0 text-[#db5641]" />
+                  <span>Sync Google Account</span>
+                </div>
+                <p className="text-[10px] text-[#7a7065] font-semibold leading-normal">
+                  Backup your 60-hole progress and gold coins in real-time.
+                </p>
+                <button
+                  type="button"
+                  onClick={onLogin}
+                  className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 text-[11px]"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Sign In with Google</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt="Avatar"
+                      referrerPolicy="no-referrer"
+                      className="w-7 h-7 rounded-full border border-[#3d312a]/10"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-[#db5641] text-white flex items-center justify-center font-bold text-[11px]">
+                      <User className="w-3.5 h-3.5" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-[#3d312a] truncate text-[11px]">
+                      {user.displayName || 'Google Champion'}
+                    </p>
+                    <p className="text-[9px] text-[#7a7065] truncate font-semibold leading-none mt-0.5">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border-t border-[#3d312a]/10 pt-1.5 flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1 font-bold text-[#6ca750]">
+                    {syncStatus === 'syncing' ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin text-[#db5641]" />
+                        <span className="text-[#db5641]">Syncing...</span>
+                      </>
+                    ) : syncStatus === 'offline' ? (
+                      <>
+                        <CloudOff className="w-3 h-3 text-[#7a7065]" />
+                        <span className="text-[#7a7065]">Offline</span>
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="w-3 h-3 text-[#6ca750]" />
+                        <span>Cloud Synced</span>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    onClick={onLogout}
+                    className="text-[#db5641] hover:text-[#c24a37] font-bold flex items-center gap-0.5 transition-colors"
+                  >
+                    <LogOut className="w-3 h-3" />
+                    <span>Log out</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Active Panel Content View */}

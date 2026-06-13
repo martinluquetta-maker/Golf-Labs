@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net - Default Deny all path requests
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable, hardened helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Hardened validation for UserProgress
+    function isValidUserProgress(data, userId) {
+      return data.userId == userId
+          && data.userId == request.auth.uid
+          && data.currentLevelIndex is int
+          && data.currentLevelIndex >= 0
+          && data.currentLevelIndex <= 100
+          && data.totalScore is int
+          && data.points is int
+          && data.coins is int
+          && data.coins >= 0
+          && data.unlockedBallIds is list
+          && data.unlockedBallIds.size() > 0
+          && data.unlockedBallIds.size() <= 50
+          && data.equippedBallId is string
+          && data.equippedBallId.size() <= 64
+          && data.bestScores is map
+          && data.resetUnlocked is bool
+          && data.updatedAt == request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && isValidUserProgress(incoming(), userId)
+                    && incoming().keys().hasAll(['userId', 'currentLevelIndex', 'totalScore', 'points', 'bestScores', 'resetUnlocked', 'coins', 'unlockedBallIds', 'equippedBallId', 'updatedAt'])
+                    && incoming().keys().size() == 10;
+                    
+      allow update: if isOwner(userId)
+                    && isValidId(userId)
+                    && isValidUserProgress(incoming(), userId)
+                    && incoming().userId == existing().userId; // Immutable UID integrity
+                    
+      allow delete: if false; // Progress cannot be deleted through client libraries
+    }
+  }
+}

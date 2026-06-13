@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "UserProgress": {
+      "title": "UserProgress",
+      "description": "Contains the game state, coins, unlocked balls, and high scores for a player.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique user ID matching request.auth.uid"
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address"
+        },
+        "currentLevelIndex": {
+          "type": "integer",
+          "description": "The current level index the user is on"
+        },
+        "totalScore": {
+          "type": "integer",
+          "description": "The cumulative score/strokes across levels"
+        },
+        "points": {
+          "type": "integer",
+          "description": "Total earned score points"
+        },
+        "bestScores": {
+          "type": "object",
+          "description": "Key-value pair of level index string to best score integer"
+        },
+        "resetUnlocked": {
+          "type": "boolean",
+          "description": "Whether the player unlocked the game-end reset trigger"
+        },
+        "coins": {
+          "type": "integer",
+          "description": "Total coins accumulated by the player"
+        },
+        "unlockedBallIds": {
+          "type": "array",
+          "description": "List of ball IDs unlocked in the shop"
+        },
+        "equippedBallId": {
+          "type": "string",
+          "description": "ID of the currently selected/equipped golf ball"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last write"
+        }
+      },
+      "required": [
+        "userId",
+        "currentLevelIndex",
+        "totalScore",
+        "points",
+        "bestScores",
+        "coins",
+        "unlockedBallIds",
+        "equippedBallId",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProgress",
+      "description": "User profile containing persistent synced game progress."
+    }
+  }
+}
