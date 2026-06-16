@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { LevelData } from '../types';
 import { LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 
 interface GameMenuProps {
@@ -26,6 +26,8 @@ interface GameMenuProps {
   onLogout: () => Promise<void>;
   firebaseConfigured: boolean;
   syncStatus: 'synced' | 'syncing' | 'offline' | 'pending';
+  authError: { code: string; message: string; domain?: string } | null;
+  onClearAuthError: () => void;
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -44,9 +46,20 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   onLogout,
   firebaseConfigured,
   syncStatus,
+  authError,
+  onClearAuthError,
 }) => {
   const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyDomain = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.hostname);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const getGroupLevels = () => {
     const start = levelGroup * 20;
@@ -232,6 +245,52 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                     <LogIn className="w-3.5 h-3.5" />
                     <span>Sign In with Google</span>
                   </button>
+                )}
+
+                {/* Highly descriptive Troubleshooting block if Firebase Auth popup closes instantly / fails */}
+                {authError && (
+                  <div className="mt-2 p-2.5 bg-red-50/90 border border-red-200 rounded-xl text-left text-[10px] text-red-800 space-y-1.5 transition-all animate-fade-in shadow-sm">
+                    <div className="flex items-start gap-1.5 font-bold text-red-900 leading-tight">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-600 mt-0.5" />
+                      <div>
+                        <span>Auth Error ({authError.code || 'Failed'})</span>
+                        <p className="text-[9px] text-red-700 font-medium leading-normal mt-0.5">
+                          {authError.message || 'Popups block, unauthorized custom domain, or network state.'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-1.5 border-t border-red-200/50 space-y-1 text-[9px] text-red-800">
+                      <p className="font-bold text-red-910">Playing on Vercel or a custom domain?</p>
+                      <p className="leading-relaxed mt-1 text-red-950">
+                        The default AI Studio cloud database only allows logins from internal AI Studio domains (<code>*.run.app</code>). You cannot modify its allowed domains.
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1.5 pl-0.5 mt-2 font-semibold">
+                        <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline text-red-900 font-extrabold hover:text-red-950">Firebase Console</a> and create your own free project.</li>
+                        <li>Enable <b>Authentication</b> (Google Provider) and <b>Firestore Database</b>.</li>
+                        <li>In Auth Settings {'>'} Authorized Domains, add your Vercel address.</li>
+                        <li>Copy your new Firebase config into `firebase-applet-config.json`.</li>
+                      </ol>
+                      
+                      <div className="pt-1 flex gap-1">
+                        <button
+                          type="button"
+                          onClick={handleCopyDomain}
+                          className="flex-1 bg-red-100 hover:bg-red-200 text-red-900 font-extrabold py-1 px-1.5 rounded-md flex items-center justify-center gap-1 transition-colors text-[9px]"
+                        >
+                          {copied ? <Check className="w-2.5 h-2.5 text-[#6ca750]" /> : <Copy className="w-2.5 h-2.5" />}
+                          <span>{copied ? 'Copied hostname!' : 'Copy Domain'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={onClearAuthError}
+                          className="bg-white hover:bg-gray-100 border border-red-200 text-gray-700 py-1 px-1.5 rounded-md font-bold text-[9px]"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             ) : (

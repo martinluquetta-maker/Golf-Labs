@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0325768976",
-  "appId": "1:560364424290:web:b0a3c7bbbd5b923524153b",
-  "apiKey": "AIzaSyCagy_TSFP-Z86Su67qmgINPZh9hu3NdzA",
-  "authDomain": "gen-lang-client-0325768976.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-c5563073-7426-45fa-8f0c-40b88ddef234",
-  "storageBucket": "gen-lang-client-0325768976.firebasestorage.app",
-  "messagingSenderId": "560364424290",
-  "measurementId": ""
+  "projectId": "golf-labs",
+  "appId": "1:7515868358:web:f18cf980aa9f85d91adbc7",
+  "apiKey": "AIzaSyCow6ibK6KtScNkUqRm7Y-AeJEoj4dfO_w",
+  "authDomain": "golf-labs.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "golf-labs.firebasestorage.app",
+  "messagingSenderId": "7515868358",
+  "measurementId": "G-8EYMLZEYKW"
 }

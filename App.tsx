@@ -30,7 +30,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
-      const saved = localStorage.getItem('golf_lab_state');
+      // Clear out any old lingering data from previous bugs
+      localStorage.removeItem('golf_lab_state');
+      
+      const saved = sessionStorage.getItem('golf_lab_state');
       if (saved) {
         const parsed = JSON.parse(saved);
         return {
@@ -49,7 +52,7 @@ const App: React.FC = () => {
         };
       }
     } catch (e) {
-      console.error("Error reading localStorage", e);
+      console.error("Error reading sessionStorage", e);
     }
     return {
       currentLevelIndex: 0,
@@ -77,6 +80,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [firebaseConfigured, setFirebaseConfigured] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'pending'>('pending');
+  const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
 
   const currentLevel = LEVELS[gameState.currentLevelIndex];
   const totalPar = LEVELS.reduce((acc, l) => acc + l.par, 0);
@@ -97,6 +101,24 @@ const App: React.FC = () => {
   useEffect(() => {
     preloadCache(audioFiles);
   }, []);
+
+  // Cheat: Auto-grant massive amount of coins and complete all holes with hole-in-one ONLY for the developer account
+  useEffect(() => {
+    if (user && user.email === 'martin.luquetta@sgs.edu.co') {
+      const cheatedCompleted: Record<number, number> = {};
+      LEVELS.forEach((_, index) => {
+        cheatedCompleted[index] = 1; // 1 stroke (hole in one)
+      });
+  
+      setGameState(prev => ({
+        ...prev,
+        // We use 9 quadrillion because standard safe JavaScript integers max out at ~9.007 quadrillion
+        // and going above that breaks Firebase Firestore type validation for integers.
+        coins: Math.max(prev.coins || 0, 9000000000000000),
+        bestScores: { ...prev.bestScores, ...cheatedCompleted }
+      }));
+    }
+  }, [user]);
 
   // Firebase Init & Auth state hooks
   useEffect(() => {
@@ -203,12 +225,17 @@ const App: React.FC = () => {
   const handleLogin = async () => {
     try {
       setSyncStatus('syncing');
+      setAuthError(null);
       const loggedUser = await authenticateWithGoogle();
       setUser(loggedUser);
       setSyncStatus('synced');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Authentication login flow error:", err);
       setSyncStatus('offline');
+      setAuthError({
+        code: err?.code || 'auth/popup-failed',
+        message: err?.message || 'The authentication popup closed or failed. This usually happens if the domain is not authorized in your Firebase console, or if third-party popups are blocked by your browser.'
+      });
     }
   };
 
@@ -216,15 +243,31 @@ const App: React.FC = () => {
     try {
       await logOutFromGoogle();
       setUser(null);
+      // Reset game state when logging out to prevent cross-account leak
+      setGameState({
+        currentLevelIndex: 0,
+        strokes: 0,
+        totalScore: 0,
+        points: 0,
+        state: 'AIMING',
+        lastCommentary: null,
+        commentaryLoading: false,
+        bestScores: {},
+        resetUnlocked: false,
+        coins: 100,
+        unlockedBallIds: ['classic_white'],
+        equippedBallId: 'classic_white',
+      });
+      sessionStorage.removeItem('golf_lab_state');
     } catch (err) {
       console.error("Authentication logout flow error:", err);
     }
   };
 
-  // Keep localStorage as a resilient offline-first fallback
+  // Keep sessionStorage as a resilient offline-first fallback for current tab session
   useEffect(() => {
     try {
-      localStorage.setItem('golf_lab_state', JSON.stringify({
+      sessionStorage.setItem('golf_lab_state', JSON.stringify({
         currentLevelIndex: gameState.currentLevelIndex,
         totalScore: gameState.totalScore,
         points: gameState.points,
@@ -235,7 +278,7 @@ const App: React.FC = () => {
         equippedBallId: gameState.equippedBallId ?? 'classic_white',
       }));
     } catch (e) {
-      console.error("Error writing to localStorage", e);
+      console.error("Error writing to sessionStorage", e);
     }
   }, [
     gameState.currentLevelIndex,
@@ -638,6 +681,8 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           firebaseConfigured={firebaseConfigured}
           syncStatus={syncStatus}
+          authError={authError}
+          onClearAuthError={() => setAuthError(null)}
         />
       )}
 
