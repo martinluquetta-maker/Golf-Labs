@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import config from '../firebase-applet-config.json';
 
 export enum OperationType {
@@ -151,5 +151,24 @@ export async function saveUserProfile(userId: string, data: any) {
     }, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function getLeaderboard(limitCount: number = 50) {
+  const { db, configured } = await getFirebaseServices();
+  if (!configured) return [];
+  try {
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, orderBy('points', 'desc'), limit(limitCount));
+    const querySnapshot = await getDocs(q);
+    
+    const leaderboard: any[] = [];
+    querySnapshot.forEach((doc) => {
+      leaderboard.push({ id: doc.id, ...doc.data() });
+    });
+    return leaderboard;
+  } catch (error) {
+    console.error("Error fetching leaderboard:", error);
+    return [];
   }
 }

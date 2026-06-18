@@ -470,7 +470,6 @@ const App: React.FC = () => {
         currentLevelIndex: 0,
         strokes: 0,
         totalScore: 0,
-        points: 0,
         state: 'AIMING',
         lastCommentary: null,
         commentaryLoading: false

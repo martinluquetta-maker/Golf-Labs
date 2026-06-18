@@ -7,8 +7,9 @@ import React, { useState } from 'react';
 import { LevelData } from '../types';
 import { LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
+import { LeaderboardView } from './LeaderboardView';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -49,7 +50,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   authError,
   onClearAuthError,
 }) => {
-  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings'>('play');
+  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
 
@@ -150,6 +151,18 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 <span className="ml-auto bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 shadow-sm">
                   🪙
                 </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('leaderboard')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap md:whitespace-normal shrink-0 ${
+                  activeTab === 'leaderboard'
+                    ? 'bg-[#3d312a] text-[#faf6ee] shadow-md'
+                    : 'text-[#3d312a]/70 hover:bg-[#3d312a]/5 hover:text-[#3d312a]'
+                }`}
+              >
+                <Trophy className="w-4 h-4 shrink-0" />
+                <span>Leaderboard</span>
               </button>
 
               <button
@@ -526,6 +539,10 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               onBuyBall={onBuyBall}
               onEquipBall={onEquipBall}
             />
+          )}
+
+          {activeTab === 'leaderboard' && (
+            <LeaderboardView firebaseConfigured={firebaseConfigured} currentUserUid={user?.uid || null} />
           )}
 
           {/* TAB 3: HOW TO PLAY */}
