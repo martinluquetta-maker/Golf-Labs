@@ -10,7 +10,7 @@ import { LEVELS } from './levels';
 import { GameState } from './types';
 import { getCaddyCommentary } from './services/geminiService';
 import { ENABLE_AI_CADDY, ENABLE_DEV_TOOLS } from './constants';
-import { Loader2, RotateCcw, FastForward, Edit, Menu } from 'lucide-react';
+import { Loader2, RotateCcw, FastForward, Edit, Menu, Smartphone } from 'lucide-react';
 import { CloseIcon } from './components/Icons';
 import Footer from './components/Footer';
 import useAudio from "./hooks/useAudio";
@@ -104,6 +104,20 @@ const App: React.FC = () => {
   const [firebaseConfigured, setFirebaseConfigured] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'pending'>('pending');
   const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, []);
 
   const currentLevel = LEVELS[gameState.currentLevelIndex];
   const totalPar = LEVELS.reduce((acc, l) => acc + l.par, 0);
@@ -161,17 +175,23 @@ const App: React.FC = () => {
               const cloudProgress = await loadUserProfile(currentUser.uid);
               if (cloudProgress) {
                 // Synthesize local and cloud progress
-                setGameState(prev => ({
-                  ...prev,
-                  currentLevelIndex: cloudProgress.currentLevelIndex ?? prev.currentLevelIndex,
-                  totalScore: cloudProgress.totalScore ?? prev.totalScore,
-                  points: cloudProgress.points ?? prev.points,
-                  bestScores: cloudProgress.bestScores ?? prev.bestScores,
-                  resetUnlocked: cloudProgress.resetUnlocked ?? prev.resetUnlocked,
-                  coins: cloudProgress.coins ?? prev.coins,
-                  unlockedBallIds: cloudProgress.unlockedBallIds ?? prev.unlockedBallIds,
-                  equippedBallId: cloudProgress.equippedBallId ?? prev.equippedBallId,
-                }));
+                setGameState(prev => {
+                  const localBalls = prev.unlockedBallIds || ['classic_white'];
+                  const cloudBalls = cloudProgress.unlockedBallIds || [];
+                  const mergedBalls = Array.from(new Set([...localBalls, ...cloudBalls]));
+                  
+                  return {
+                    ...prev,
+                    currentLevelIndex: Math.max(cloudProgress.currentLevelIndex ?? 0, prev.currentLevelIndex ?? 0),
+                    totalScore: cloudProgress.totalScore ?? prev.totalScore,
+                    points: Math.max(cloudProgress.points ?? 0, prev.points ?? 0),
+                    bestScores: { ...(prev.bestScores || {}), ...(cloudProgress.bestScores || {}) },
+                    resetUnlocked: cloudProgress.resetUnlocked || prev.resetUnlocked,
+                    coins: Math.max(cloudProgress.coins ?? 100, prev.coins ?? 100),
+                    unlockedBallIds: mergedBalls,
+                    equippedBallId: cloudProgress.equippedBallId ?? prev.equippedBallId,
+                  };
+                });
               } else {
                 // Populate new signups with current local state
                 await saveUserProfile(currentUser.uid, {
@@ -654,6 +674,18 @@ const App: React.FC = () => {
     if (diff === 2) return { term: "Double bogey", color: "text-black" };
     return null;
   };
+
+  if (isPortrait) {
+    return (
+      <div className="fixed inset-0 bg-[#3d312a] text-[#faf6ee] flex flex-col items-center justify-center p-8 z-50 text-center font-sans">
+        <Smartphone className="w-20 h-20 mb-8 animate-pulse text-[#b19f8e]" style={{ transform: 'rotate(90deg)' }} />
+        <h2 className="text-3xl font-black mb-4 tracking-tight">Rotate Your Device</h2>
+        <p className="text-[#e2d8ce] max-w-sm text-lg leading-relaxed font-medium">
+          Golf Lab is a physics sandbox designed for landscape displays. Please rotate your device horizontally to play.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
