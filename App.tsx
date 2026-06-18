@@ -30,8 +30,16 @@ import { onAuthStateChanged } from 'firebase/auth';
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
-      // Clear out any old lingering data from previous bugs
-      localStorage.removeItem('golf_lab_state');
+      // Look for ball purchases in long-term offline storage
+      let unlockedBallIds = ['classic_white'];
+      let equippedBallId = 'classic_white';
+      
+      const savedBalls = window.localStorage.getItem('golf_lab_balls');
+      if (savedBalls) {
+        const parsedBalls = JSON.parse(savedBalls);
+        if (parsedBalls.unlockedBallIds) unlockedBallIds = parsedBalls.unlockedBallIds;
+        if (parsedBalls.equippedBallId) equippedBallId = parsedBalls.equippedBallId;
+      }
       
       const saved = sessionStorage.getItem('golf_lab_state');
       if (saved) {
@@ -47,12 +55,27 @@ const App: React.FC = () => {
           bestScores: parsed.bestScores ?? {},
           resetUnlocked: parsed.resetUnlocked ?? false,
           coins: parsed.coins ?? 100,
-          unlockedBallIds: parsed.unlockedBallIds ?? ['classic_white'],
-          equippedBallId: parsed.equippedBallId ?? 'classic_white',
+          unlockedBallIds,
+          equippedBallId,
         };
       }
+      
+      return {
+        currentLevelIndex: 0,
+        strokes: 0,
+        totalScore: 0,
+        points: 0,
+        state: 'AIMING',
+        lastCommentary: null,
+        commentaryLoading: false,
+        bestScores: {},
+        resetUnlocked: false,
+        coins: 100,
+        unlockedBallIds,
+        equippedBallId,
+      };
     } catch (e) {
-      console.error("Error reading sessionStorage", e);
+      console.error("Error reading storage", e);
     }
     return {
       currentLevelIndex: 0,
@@ -267,6 +290,7 @@ const App: React.FC = () => {
   // Keep sessionStorage as a resilient offline-first fallback for current tab session
   useEffect(() => {
     try {
+      // Save game progress to tab session only
       sessionStorage.setItem('golf_lab_state', JSON.stringify({
         currentLevelIndex: gameState.currentLevelIndex,
         totalScore: gameState.totalScore,
@@ -274,11 +298,15 @@ const App: React.FC = () => {
         bestScores: gameState.bestScores,
         resetUnlocked: gameState.resetUnlocked,
         coins: gameState.coins ?? 100,
+      }));
+      
+      // Save purchased and equipped balls to long-term local storage so skins persist across devices/refreshes
+      window.localStorage.setItem('golf_lab_balls', JSON.stringify({
         unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
         equippedBallId: gameState.equippedBallId ?? 'classic_white',
       }));
     } catch (e) {
-      console.error("Error writing to sessionStorage", e);
+      console.error("Error writing to storage", e);
     }
   }, [
     gameState.currentLevelIndex,
