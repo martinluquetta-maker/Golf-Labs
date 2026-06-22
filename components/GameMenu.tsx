@@ -463,10 +463,10 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                     <button
                       onClick={() => setLevelGroup(1)}
                       className={`px-3 py-1.5 rounded-lg transition-all ${
-                        levelGroup === 1 ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
+                        levelGroup === 1 ? 'bg-[#faf6ee] text-[#288a7c] shadow-sm' : 'text-[#7a7065]'
                       }`}
                     >
-                      Holes 21-40
+                      Holes 21-40: Cyber World
                     </button>
                     <button
                       onClick={() => setLevelGroup(2)}

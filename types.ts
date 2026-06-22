@@ -33,7 +33,7 @@ export interface Wall {
 }
 
 export interface Decoration {
-  type: 'ANDROID' | 'TREX' | 'BOUNCY_PAD';
+  type: 'ANDROID' | 'TREX' | 'BOUNCY_PAD' | 'CYBER_LASER' | 'CYBER_BOUNCE' | 'CYBER_PORTAL';
   pos: Vector2;
   radius: number;
   vel?: Vector2; // Optional velocity for moving obstacles

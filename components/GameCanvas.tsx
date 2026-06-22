@@ -992,10 +992,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
       return char !== CHAR_VOID && char !== CHAR_WALL && char !== CHAR_ARC && char !== CHAR_INSIDE_ARC;
     };
 
+    const isCyber = level.color === COLORS.CYBER;
+
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    ctx.fillStyle = COLORS.GRASS_DARK;
+    ctx.fillStyle = isCyber ? COLORS.CYBER_BG : COLORS.GRASS_DARK;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.translate(Math.floor(offsetRef.current.x * dpr), Math.floor(offsetRef.current.y * dpr));
@@ -1007,23 +1009,40 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
 
     // Render deterministic atmospheric background stars/cosmic dust specks based on level id
     ctx.save();
-    const starSeed = level.id * 1234.56;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
-    for (let i = 0; i < 30; i++) {
-        const starX = Math.abs(Math.sin(starSeed + i * 23.45)) * gridWidth;
-        const starY = Math.abs(Math.cos(starSeed + i * 56.78)) * (gridHeight - TILE_SIZE * 1.5);
-        const starRadius = 0.8 + Math.abs(Math.sin(starSeed * 2.3 + i * 11.2)) * 1.6;
+    if (isCyber) {
+        // Draw neon cyan cyber grid
+        ctx.strokeStyle = COLORS.CYBER_GRID + '44'; // 44 hex for alpha
+        ctx.lineWidth = 1;
         
         ctx.beginPath();
-        ctx.arc(starX, starY, starRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        if (starRadius > 1.8) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+        for (let x = -canvas.width/finalScale; x < canvas.width/finalScale * 2; x += TILE_SIZE) {
+            ctx.moveTo(x, -canvas.height/finalScale);
+            ctx.lineTo(x, canvas.height/finalScale * 2);
+        }
+        for (let y = -canvas.height/finalScale; y < canvas.height/finalScale * 2; y += TILE_SIZE) {
+            ctx.moveTo(-canvas.width/finalScale, y);
+            ctx.lineTo(canvas.width/finalScale * 2, y);
+        }
+        ctx.stroke();
+    } else {
+        const starSeed = level.id * 1234.56;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+        for (let i = 0; i < 30; i++) {
+            const starX = Math.abs(Math.sin(starSeed + i * 23.45)) * gridWidth;
+            const starY = Math.abs(Math.cos(starSeed + i * 56.78)) * (gridHeight - TILE_SIZE * 1.5);
+            const starRadius = 0.8 + Math.abs(Math.sin(starSeed * 2.3 + i * 11.2)) * 1.6;
+            
             ctx.beginPath();
-            ctx.arc(starX, starY, starRadius * 3.5, 0, Math.PI * 2);
+            ctx.arc(starX, starY, starRadius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+
+            if (starRadius > 1.8) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.beginPath();
+                ctx.arc(starX, starY, starRadius * 3.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+            }
         }
     }
     ctx.restore();
@@ -1071,23 +1090,49 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
       : ctx.createLinearGradient(0, 0, 0, gridHeight);
     
     // Warm oatmeal/vanilla watercolor spectrum inspired by Hecho a Mano artwork
-    grad.addColorStop(0, '#f4ece2');
-    grad.addColorStop(0.5, '#ebdcc9');
-    grad.addColorStop(1, '#ebd1b5');
+    // Or deep synthwave grid for cyber levels
+    if (isCyber) {
+        grad.addColorStop(0, '#110b1a');
+        grad.addColorStop(0.5, '#1e1133');
+        grad.addColorStop(1, '#2c1544');
+    } else {
+        grad.addColorStop(0, '#f4ece2');
+        grad.addColorStop(0.5, '#ebdcc9');
+        grad.addColorStop(1, '#ebd1b5');
+    }
     
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, gridWidth, gridHeight);
+    
+    // Draw cyber grid on floor surface if requested
+    if (isCyber) {
+        ctx.save();
+        ctx.strokeStyle = COLORS.CYBER_NEON + '22';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = 0; x <= gridWidth; x += TILE_SIZE) {
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, gridHeight);
+        }
+        for (let y = 0; y <= gridHeight; y += TILE_SIZE) {
+            ctx.moveTo(0, y);
+            ctx.lineTo(gridWidth, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+    
     ctx.restore();
 
     // Render Sand Tiles
     sandTilesRef.current.forEach(t => {
-      ctx.fillStyle = COLORS.SAND;
+      ctx.fillStyle = isCyber ? COLORS.CYBER_LASER + '55' : COLORS.SAND;
       ctx.fillRect(t.x, t.y, TILE_SIZE, TILE_SIZE);
     });
 
     // Render Sand Arc Tiles
     sandArcsRef.current.forEach(t => {
-      ctx.fillStyle = COLORS.SAND;
+      ctx.fillStyle = isCyber ? COLORS.CYBER_LASER + '55' : COLORS.SAND;
       let cx = t.x, cy = t.y;
       let startAngle = 0;
       if (t.orientation === 'NE') { cx = t.x + TILE_SIZE; startAngle = Math.PI/2; }
@@ -1103,13 +1148,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
 
     // Render Water Tiles
     waterTilesRef.current.forEach(t => {
-      ctx.fillStyle = COLORS.WATER;
+      ctx.fillStyle = isCyber ? COLORS.CYBER_NEON : COLORS.WATER;
       ctx.fillRect(t.x, t.y, TILE_SIZE, TILE_SIZE);
     });
 
     // Render Water Arc Tiles
     waterArcsRef.current.forEach(t => {
-      ctx.fillStyle = COLORS.WATER;
+      ctx.fillStyle = isCyber ? COLORS.CYBER_NEON : COLORS.WATER;
       let cx = t.x, cy = t.y;
       let startAngle = 0;
       if (t.orientation === 'NE') { cx = t.x + TILE_SIZE; startAngle = Math.PI/2; }
@@ -1296,12 +1341,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         if (isFloor(r, c)) {
           const aboveChar = (r > 0) ? level.grid[r - 1][c] : undefined;
           if (aboveChar === CHAR_VOID || aboveChar === CHAR_WALL) {
-            // Main Moss Green turf line
-            ctx.fillStyle = COLORS.GREEN;
+            // Main Moss Green turf line or Neon pink for cyber
+            ctx.fillStyle = isCyber ? COLORS.CYBER_NEON : COLORS.GREEN;
             ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, 6);
             
             // Light grass highlight to make it pop 3D out of the background
-            ctx.fillStyle = COLORS.GRASS_HIGHLIGHT;
+            ctx.fillStyle = isCyber ? '#ffffff' : COLORS.GRASS_HIGHLIGHT;
             ctx.fillRect(c * TILE_SIZE, r * TILE_SIZE, TILE_SIZE, 1.8);
           }
         }
