@@ -7,9 +7,10 @@ import React, { useState } from 'react';
 import { LevelData } from '../types';
 import { LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
+import { AchievementsView } from './AchievementsView';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -50,7 +51,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   authError,
   onClearAuthError,
 }) => {
-  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard'>('play');
+  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard' | 'achievements'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
 
@@ -163,6 +164,18 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               >
                 <Trophy className="w-4 h-4 shrink-0" />
                 <span>Leaderboard</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('achievements')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap md:whitespace-normal shrink-0 ${
+                  activeTab === 'achievements'
+                    ? 'bg-[#3d312a] text-[#faf6ee] shadow-md'
+                    : 'text-[#3d312a]/70 hover:bg-[#3d312a]/5 hover:text-[#3d312a]'
+                }`}
+              >
+                <Star className="w-4 h-4 shrink-0" />
+                <span>Achievements</span>
               </button>
 
               <button
@@ -543,6 +556,14 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
           {activeTab === 'leaderboard' && (
             <LeaderboardView firebaseConfigured={firebaseConfigured} currentUserUid={user?.uid || null} />
+          )}
+
+          {activeTab === 'achievements' && (
+            <AchievementsView
+              bestScores={bestScores}
+              coins={coins}
+              unlockedBallIds={unlockedBallIds}
+            />
           )}
 
           {/* TAB 3: HOW TO PLAY */}
