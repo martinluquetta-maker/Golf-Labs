@@ -1,4 +1,3 @@
-import { CYBER_LEVELS } from './cyberLevels';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -7,7 +6,7 @@ import { CYBER_LEVELS } from './cyberLevels';
 import { LevelData, Vector2, PortalExitConfig } from './types';
 import { COLORS } from './constants';
 
-export const parseLevel = (
+export function parseLevel(
   id: number,
   letter: string,
   color: string,
@@ -15,15 +14,17 @@ export const parseLevel = (
   name: string,
   grid: string[],
   portalExitConfigs?: PortalExitConfig[]
-): LevelData => ({
-  id,
-  letter,
-  color,
-  par,
-  name,
-  grid,
-  portalExitConfigs
-});
+): LevelData {
+  return {
+    id,
+    letter,
+    color,
+    par,
+    name,
+    grid,
+    portalExitConfigs
+  };
+}
 
 export const PORTRAIT_SCALE_OVERRIDES: Record<number, number> = {
   1: 1.1,
@@ -39,7 +40,7 @@ export const LEVELS: LevelData[] = [
   // ==========================================
   // ROW 1: LEVELS 1 - 20 (Intro, Boosters, Gaps, Portals)
   // ==========================================
-  parseLevel(1, '1', COLORS.GREEN, 2, "THE FIRST HILL", [
+  parseLevel(1, '1', COLORS.GREEN, 2, "WELCOME FAIRWAY", [
     "#########################",
     "#                       #",
     "#                       #",
@@ -50,7 +51,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(2, '2', COLORS.BLUE, 2, "THE TWO JUMPS", [
+  parseLevel(2, '2', COLORS.BLUE, 2, "THE FIRST HILL", [
     "########################",
     "#                      #",
     "#                      #",
@@ -61,7 +62,7 @@ export const LEVELS: LevelData[] = [
     "########################",
   ]),
 
-  parseLevel(3, '3', COLORS.RED, 3, "THE RICOCHET", [
+  parseLevel(3, '3', COLORS.RED, 3, "FORKED JUNCTION", [
     "##################",
     "#                #",
     "#              H #",
@@ -74,7 +75,7 @@ export const LEVELS: LevelData[] = [
     "##################",
   ]),
 
-  parseLevel(4, '4', COLORS.RED, 3, "SPLIT PATH", [
+  parseLevel(4, '4', COLORS.YELLOW, 3, "TELEPORT CENTRAL", [
     "#########################",
     "#                       #",
     "#S..     >     ...ZZ...H#",
@@ -85,7 +86,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(5, '5', COLORS.INDIGO, 3, "TELEPORT TROUBLE", [
+  parseLevel(5, '5', COLORS.INDIGO, 3, "CASTLE WALLS", [
     "#########################",
     "#S..                ..H #",
     "#    1           2      #",
@@ -96,7 +97,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(6, '6', COLORS.BLUE, 2, "THE BRIDGE", [
+  parseLevel(6, '6', COLORS.ANDROID, 2, "PRESSURE BOUNCER", [
     "#########################",
     "#S..                    #",
     "######## WWWWWWWWWWWW ###",
@@ -107,7 +108,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(7, '7', COLORS.YELLOW, 4, "THE TRIPLE JUMP", [
+  parseLevel(7, '7', COLORS.DINO, 4, "TRIPLE GAP", [
     "#########################",
     "#S..                    #",
     "###### WWWW  WWWW  ######",
@@ -118,7 +119,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(8, '8', COLORS.GREEN, 3, "MULTI-RICOCHET", [
+  parseLevel(8, '8', COLORS.NEW_GREEN, 3, "BOUNCE SHOT", [
     "#########################",
     "#S..        #          H#",
     "####### #   # ###########",
@@ -129,7 +130,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(9, '9', COLORS.NEW_GREEN, 3, "THE S-CURVE", [
+  parseLevel(9, '9', COLORS.GREEN, 3, "SAND HAZARDS", [
     "#########################",
     "#S..    Z   Z           #",
     "######  Z   Z  #######  #",
@@ -140,7 +141,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(10, '10', COLORS.DINO, 3, "THE DRAGON'S LAIR", [
+  parseLevel(10, '10', COLORS.BLUE, 3, "WALL CONGESTION", [
     "#########################",
     "#S..                    #",
     "#####   #####   ##### ###",
@@ -151,7 +152,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(11, '11', COLORS.INDIGO, 3, "PRESSURE SELECT", [
+  parseLevel(11, '11', COLORS.RED, 3, "THE GRASSY BUMPERS", [
     "#########################",
     "#S..                    #",
     "###### ########## #######",
@@ -162,7 +163,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(12, '12', COLORS.ANDROID, 3, "THE LOOP DE LOOP", [
+  parseLevel(12, '12', COLORS.YELLOW, 3, "THE BARRIER", [
     "#########################",
     "#S..                 H  #",
     "###### ################ #",
@@ -173,7 +174,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(13, '13', COLORS.RED, 3, "S-TURN SPEEDWAY", [
+  parseLevel(13, '13', COLORS.INDIGO, 3, "SPEED RAILWAY", [
     "#########################",
     "#S..                    #",
     "####### >>>>>>>>  #######",
@@ -184,7 +185,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(14, '14', COLORS.YELLOW, 4, "THE MAZE", [
+  parseLevel(14, '14', COLORS.ANDROID, 4, "GRAVITY WELL", [
     "#########################",
     "#S..  #     #     #    H#",
     "####  # ### #  #  # ### #",
@@ -195,7 +196,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(15, '15', COLORS.INDIGO, 5, "FINAL GAUNTLET", [
+  parseLevel(15, '15', COLORS.DINO, 5, "THE PASSAGE", [
     "#########################",
     "#S..    WWWWW   1      H#",
     "####### WWWWW ###########",
@@ -206,7 +207,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(16, '16', COLORS.NEW_GREEN, 3, "THE S-CURVE JUMP", [
+  parseLevel(16, '16', COLORS.NEW_GREEN, 3, "THE GRID", [
     "#########################",
     "#S..    Z   Z           #",
     "######  Z   Z  #######  #",
@@ -217,7 +218,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(17, '17', COLORS.RED, 3, "TURBO REBOUND", [
+  parseLevel(17, '17', COLORS.GREEN, 3, "CLIFFSIDE CHASM", [
     "#########################",
     "#S..                    #",
     "###  ####   ####  ####  #",
@@ -228,7 +229,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(18, '18', COLORS.BLUE, 3, "PRESSURE PLATS", [
+  parseLevel(18, '18', COLORS.BLUE, 3, "ANDROID VALLEY", [
     "#########################",
     "#S..                    #",
     "#######...#####...#######",
@@ -239,7 +240,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(19, '19', COLORS.INDIGO, 3, "PORTAL RACER", [
+  parseLevel(19, '19', COLORS.RED, 3, "CYCLONE LOOP", [
     "#########################",
     "#S..    1           2  H#",
     "####### ############# ###",
@@ -250,7 +251,7 @@ export const LEVELS: LevelData[] = [
     "#########################",
   ]),
 
-  parseLevel(20, '20', COLORS.YELLOW, 4, "THE LOOP DE LOOP II", [
+  parseLevel(20, '20', COLORS.YELLOW, 4, "THE GAUNTLET", [
     "#########################",
     "#S..   >>>>>>>>>     H  #",
     "###### ##################",
@@ -264,7 +265,208 @@ export const LEVELS: LevelData[] = [
   // ==========================================
   // ROW 2: LEVELS 21 - 40 (Cyber World)
   // ==========================================
-  ...CYBER_LEVELS,
+  
+  parseLevel(21, '21', COLORS.GREEN, 3, "ELEVATED ENTRY", [
+    "#########################",
+    "#                       #",
+    "#                       #",
+    "#   H                   #",
+    "# >>>>> W W W W W       #",
+    "#     ...W.W.W.W.       #",
+    "#S..                    #",
+    "#########################",
+  ]),
+  parseLevel(22, '22', COLORS.BLUE, 3, "WATER RIDE", [
+    "#########################",
+    "#             >       H #",
+    "#             > W W W   #",
+    "#S..    B     >       W #",
+    "#             > W W W   #",
+    "#             >         #",
+    "#             > W W W   #",
+    "#########################",
+  ]),
+  parseLevel(23, '23', COLORS.RED, 3, "THE CHASM", [
+    "#########################",
+    "#S..                    #",
+    "###### W W W W W WWWW WWW",
+    "#        B     B     H  #",
+    "#      WWW W W W W WWWW #",
+    "######                  #",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(24, '24', COLORS.YELLOW, 3, "WATER MAZE", [
+    "#########################",
+    "#S..    W          W    #",
+    "######    W      W      #",
+    "#      W    W  W   WW  H#",
+    "#        W            W #",
+    "######  W  W  W  W W   W#",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(25, '25', COLORS.INDIGO, 4, "THE CORE", [
+    "#########################",
+    "#S.. W W  >>>  W W    H #",
+    "###  W W       W W  #####",
+    "#      B   W   B        #",
+    "#          W            #",
+    "### #####################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(26, '26', COLORS.ANDROID, 3, "THE WALL", [
+    "#########################",
+    "#S..       W         H  #",
+    "######     W     #######",
+    "#  B       W       B    #",
+    "#          W            #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(27, '27', COLORS.DINO, 4, "SPEED ROUTE", [
+    "#########################",
+    "#S..       A         H  #",
+    "######  A     A  #######",
+    "#  >       A       >    #",
+    "#      A       A        #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(28, '28', COLORS.NEW_GREEN, 3, "DANGER OUTBREAK", [
+    "#########################",
+    "#S..                    #",
+    "######  T  ###  T  ####",
+    "#                       #",
+    "#  W     #####  W    H  #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(29, '29', COLORS.GREEN, 3, "HIDDEN PATH", [
+    "#########################",
+    "#S..                    #",
+    "######   WWWWW   WWWWW ##",
+    "#        WWWWW   WWWWW #",
+    "#    >   WWWWW   WWWWW H#",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(30, '30', COLORS.BLUE, 4, "THE CENTER", [
+    "#########################",
+    "#S..   W  ####  W    H  #",
+    "###### W W W W W W ######",
+    "#  W     W              #",
+    "#    >        >         #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(31, '31', COLORS.RED, 4, "THE GATE", [
+    "#########################",
+    "#S..                    #",
+    "#### >>>>> ##### <<<<< ##",
+    "#        W     W        #",
+    "#  >>>>>>       <<<<<< H#",
+    "#### ####################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(32, '32', COLORS.YELLOW, 3, "RIVER STREAM", [
+    "#########################",
+    "#S..                    #",
+    "###### >>>>>>>>>>>   H  #",
+    "#      WWWWWWWWWWW  #####",
+    "#  ^   <<<<<<<<<<<      #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(33, '33', COLORS.INDIGO, 4, "PARALLEL", [
+    "#########################",
+    "#S..                    #",
+    "###### >>>>>>>>  WWWWW ##",
+    "#  W   A......A  WWWWW #",
+    "#      <<<<<<<<  WWWWW H#",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(34, '34', COLORS.ANDROID, 4, "ROBOT SWARM", [
+    "#########################",
+    "#S..                    #",
+    "######  A  WWW  A  ######",
+    "#        A   A          #",
+    "#  A   A       A   A H  #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(35, '35', COLORS.DINO, 4, "TREX TRAP", [
+    "#########################",
+    "#S..    WWWWW        H  #",
+    "######  WWWWW  ##########",
+    "#  T    WWWWW    T      #",
+    "#        B              #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(36, '36', COLORS.NEW_GREEN, 5, "THE BACKDOOR", [
+    "#########################",
+    "#S.. W  W  W  W  W  W  H#",
+    "###  W  W  W  W  W  W  ##",
+    "#  A  A  A  A  A  A  A  #",
+    "#  W  W  W  W  W  W  W  #",
+    "#                       #",
+    "#########################",
+    "#########################",
+  ]),
+  parseLevel(37, '37', COLORS.GREEN, 5, "QUICK RESPONSE", [
+    "#########################",
+    "#S..     T       T   H  #",
+    "###### ##### ##### ######",
+    "#  W     T              #",
+    "#     A       A       A #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(38, '38', COLORS.BLUE, 4, "LIMIT", [
+    "#########################",
+    "#S..                    #",
+    "###### >>>>>  <<<<< #####",
+    "#      .....  .....  H  #",
+    "#   B  >>>>>  <<<<<  B  #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(39, '39', COLORS.RED, 4, "HARD RESET", [
+    "#########################",
+    "#S..       W       H    #",
+    "###### WWWWWWWWW ########",
+    "#  T   WWWWWWWWW   T    #",
+    "#  W   WWWWWWWWW        #",
+    "###### ##################",
+    "#                       #",
+    "#########################",
+  ]),
+  parseLevel(40, '40', COLORS.YELLOW, 6, "CITY GRAND MASTER", [
+    "#########################",
+    "#S. WWWW  W  ZZZZ   A  H#",
+    "### WWWW ### ZZZZ #######",
+    "#  B      T            B#",
+    "#    >>>>    <<<<  T    #",
+    "### #####################",
+    "#                       #",
+    "#########################",
+  ]),
+
 
   // ==========================================
   // ROW 3: LEVELS 41 - 60 (Expert Challenges, Masters Arena)
@@ -485,6 +687,230 @@ export const LEVELS: LevelData[] = [
     "#  B      T            B#",
     "#    >>>>    <<<<  1    #",
     "### #####################",
+    "#                       #",
+    "#########################",
+  ]),
+];
+
+export const CYBER_LEVELS: LevelData[] = [
+  parseLevel(1, '1', COLORS.CYBER, 2, "NEON RIDGE DATA-CHASM", [
+    "#########################",
+    "#                       #",
+    "#                       #",
+    "#                       #",
+    "#                       #",
+    "#S..      >      ......H#",
+    "####*....*###   ###*..*##",
+    "#########################",
+  ]),
+
+  parseLevel(2, '2', COLORS.CYBER, 2, "THE FIRST HILL", [
+    "########################",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#                      #",
+    "#S..         B       H #",
+    "######     #####   #####",
+    "########################",
+  ]),
+
+  parseLevel(3, '3', COLORS.CYBER, 3, "BINARY JUNCTION", [
+    "##################",
+    "#                #",
+    "#              H #",
+    "############# ####",
+    "#           #    #",
+    "#      ###  #    #",
+    "#           #    #",
+    "#    ###         #",
+    "#S^         B    #",
+    "##################",
+  ]),
+
+  parseLevel(4, '4', COLORS.CYBER, 3, "TELEPORT NODE", [
+    "#########################",
+    "#                       #",
+    "#S..     >     ...ZZ...H#",
+    "#######......############",
+    "#                       #",
+    "#     B       B         #",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(5, '5', COLORS.CYBER, 3, "ENCRYPTED BASTION", [
+    "#########################",
+    "#S..                ..H #",
+    "#    1           2      #",
+    "######## ############# ##",
+    "#                       #",
+    "## ##### ################",
+    "#    2           1      #",
+    "#########################",
+  ]),
+
+  parseLevel(6, '6', COLORS.CYBER, 2, "PRESSURE PLATES", [
+    "#########################",
+    "#S..                    #",
+    "######## WWWWWWWWWWWW ###",
+    "#        ............ H #",
+    "#        ............   #",
+    "######## WWWWWWWWWWWW ###",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(7, '7', COLORS.CYBER, 4, "THE TRIPLE JUMP", [
+    "#########################",
+    "#S..                    #",
+    "###### WWWW  WWWW  ######",
+    "#      #WW#  #WW#  #   H#",
+    "#   >  #WB# >#WB# >#    #",
+    "###### WWWW  WWWW  ######",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(8, '8', COLORS.CYBER, 3, "MULTI-RICOCHET", [
+    "#########################",
+    "#S..        #          H#",
+    "####### #   # ###########",
+    "#       #   #           #",
+    "#   ##### B ####### B   #",
+    "#   #             #     #",
+    "#       B   B     #     #",
+    "#########################",
+  ]),
+
+  parseLevel(9, '9', COLORS.CYBER, 3, "HACKER'S MAZE", [
+    "#########################",
+    "#S..    Z   Z           #",
+    "######  Z   Z  #######  #",
+    "#       Z   Z  #     #  #",
+    "#   #####   ####  #  #  #",
+    "#                 #  # H#",
+    "###################  ####",
+    "#########################",
+  ]),
+
+  parseLevel(10, '10', COLORS.CYBER, 3, "CORE FIREWALL", [
+    "#########################",
+    "#S..                    #",
+    "#####   #####   ##### ###",
+    "#       #   #   #   #   #",
+    "#   T   #   # T #   # H #",
+    "#####   #####   ##### ###",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(11, '11', COLORS.CYBER, 3, "THE YUMPS", [
+    "#########################",
+    "#S..                    #",
+    "###### ########## #######",
+    "#      #        #       #",
+    "#  A   #   A    #   H   #",
+    "###### ########## #######",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(12, '12', COLORS.CYBER, 3, "THE FIRST WALL", [
+    "#########################",
+    "#S..                 H  #",
+    "###### ################ #",
+    "#      #                #",
+    "#  v   #   >>>>>>>  ^   #",
+    "###### # ############# ##",
+    "#      <<<<<<<<         #",
+    "#########################",
+  ]),
+
+  parseLevel(13, '13', COLORS.CYBER, 3, "THE LOOP RAIL", [
+    "#########################",
+    "#S..                    #",
+    "####### >>>>>>>>  #######",
+    "#                 #     #",
+    "#   <<<<<<<<      #  H  #",
+    "####### ########### #####",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(14, '14', COLORS.CYBER, 4, "GRAVITY SWITCH", [
+    "#########################",
+    "#S..  #     #     #    H#",
+    "####  # ### #  #  # ### #",
+    "#     # #   #  #  # #   #",
+    "# ##### #  ###### # # # #",
+    "#       #         #   # #",
+    "#########################",
+    "#########################",
+  ]),
+
+  parseLevel(15, '15', COLORS.CYBER, 5, "NEURAL TUNNEL", [
+    "#########################",
+    "#S..    WWWWW   1      H#",
+    "####### WWWWW ###########",
+    "#   B   WWWWW           #",
+    "#   # ####### #######   #",
+    "#   #         #     #   #",
+    "#   #    A    #  1  #   #",
+    "#########################",
+  ]),
+
+  parseLevel(16, '16', COLORS.CYBER, 3, "THE MATRIX", [
+    "#########################",
+    "#S..    Z   Z           #",
+    "######  Z   Z  #######  #",
+    "#       >   >  #     #  #",
+    "#   #####   ####  #  #  #",
+    "#      B   B      #  # H#",
+    "###################  ####",
+    "#########################",
+  ]),
+
+  parseLevel(17, '17', COLORS.CYBER, 3, "THE PRECIPICE", [
+    "#########################",
+    "#S..                    #",
+    "###  ####   ####  ####  #",
+    "#    #  #   #  #  #  #  #",
+    "# >  #  # > #  # >#  # H#",
+    "######  #####  ####  ####",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(18, '18', COLORS.CYBER, 3, "THE PARASITE", [
+    "#########################",
+    "#S..                    #",
+    "#######...#####...#######",
+    "#        A     A        #",
+    "#   A               A  H#",
+    "#######...#####...#######",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(19, '19', COLORS.CYBER, 3, "WIND GP-LOOP", [
+    "#########################",
+    "#S..    1           2  H#",
+    "####### ############# ###",
+    "#                       #",
+    "#   2           1       #",
+    "####### ############# ###",
+    "#                       #",
+    "#########################",
+  ]),
+
+  parseLevel(20, '20', COLORS.CYBER, 4, "FINAL GAUNTLET", [
+    "#########################",
+    "#S..   >>>>>>>>>     H  #",
+    "###### ##################",
+    "# B                     #",
+    "#  v      <<<<<<<<<  ^  #",
+    "###### ##################",
     "#                       #",
     "#########################",
   ]),

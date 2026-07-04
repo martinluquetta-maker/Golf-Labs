@@ -33,7 +33,7 @@ export interface Wall {
 }
 
 export interface Decoration {
-  type: 'ANDROID' | 'TREX' | 'BOUNCY_PAD' | 'CYBER_LASER' | 'CYBER_BOUNCE' | 'CYBER_PORTAL';
+  type: 'ANDROID' | 'TREX' | 'BOUNCY_PAD';
   pos: Vector2;
   radius: number;
   vel?: Vector2; // Optional velocity for moving obstacles
@@ -58,6 +58,7 @@ export interface LevelData {
 }
 
 export interface GameState {
+  currentWorld?: 'classic' | 'cyber';
   currentLevelIndex: number;
   strokes: number;
   totalScore: number;

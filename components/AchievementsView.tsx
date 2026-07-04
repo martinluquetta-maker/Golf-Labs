@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Award, Star, Zap, CircleDashed, FastForward, CheckCircle2, Gift } from 'lucide-react';
-import { LEVELS } from '../levels';
+import { LEVELS, CYBER_LEVELS } from '../levels';
 import { BALLS_STORE_ITEMS } from './BallStoreData';
 
 interface AchievementsViewProps {
@@ -26,7 +26,7 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
 
     Object.entries(bestScores).forEach(([levelIndexStr, strokes]) => {
       const levelIdx = parseInt(levelIndexStr, 10);
-      const levelData = LEVELS[levelIdx];
+      const levelData = levelIdx >= 100 ? CYBER_LEVELS[levelIdx - 100] : LEVELS[levelIdx];
       if (!levelData) return;
       
       const par = levelData.par;

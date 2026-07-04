@@ -997,7 +997,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    ctx.fillStyle = isCyber ? COLORS.CYBER_BG : COLORS.GRASS_DARK;
+    ctx.fillStyle = isCyber ? COLORS.CYBER : COLORS.GRASS_DARK;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.translate(Math.floor(offsetRef.current.x * dpr), Math.floor(offsetRef.current.y * dpr));
@@ -1009,6 +1009,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
 
     // Render deterministic atmospheric background stars/cosmic dust specks based on level id
     ctx.save();
+    
     if (isCyber) {
         // Draw neon cyan cyber grid
         ctx.strokeStyle = COLORS.CYBER_GRID + '44'; // 44 hex for alpha
@@ -1121,6 +1122,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         ctx.stroke();
         ctx.restore();
     }
+    
+    
     
     ctx.restore();
 
@@ -1253,7 +1256,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
           ctx.fill();
 
           // Green Grass Turf on the curved slope edge facing the fairway
-          ctx.strokeStyle = COLORS.GREEN;
+          ctx.strokeStyle = isCyber ? COLORS.CYBER_NEON : COLORS.GREEN;
           ctx.lineWidth = 6;
           ctx.lineCap = 'round';
           ctx.beginPath();

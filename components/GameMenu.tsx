@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
-import { LEVELS } from '../levels';
+import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
@@ -30,6 +30,9 @@ interface GameMenuProps {
   syncStatus: 'synced' | 'syncing' | 'offline' | 'pending';
   authError: { code: string; message: string; domain?: string } | null;
   onClearAuthError: () => void;
+  currentWorld?: 'classic' | 'cyber';
+  onSelectWorld?: (world: 'classic' | 'cyber') => void;
+  isCyberUnlocked?: boolean;
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -50,10 +53,21 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   syncStatus,
   authError,
   onClearAuthError,
+  currentWorld = 'classic',
+  onSelectWorld = () => {},
+  isCyberUnlocked = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard' | 'achievements'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (currentWorld === 'cyber') {
+      setLevelGroup(0);
+    }
+  }, [currentWorld]);
+
+  const activeLevels = currentWorld === 'cyber' ? CYBER_LEVELS : LEVELS;
 
   const handleCopyDomain = () => {
     if (typeof window !== 'undefined') {
@@ -65,7 +79,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
   const getGroupLevels = () => {
     const start = levelGroup * 20;
-    return LEVELS.slice(start, start + 20);
+    return activeLevels.slice(start, start + 20);
   };
 
   const getScoreTerm = (strokes: number, par: number) => {
@@ -78,12 +92,20 @@ export const GameMenu: React.FC<GameMenuProps> = ({
     return `${strokes} strokes`;
   };
 
+  const getLevelBestScore = (levelIndex: number) => {
+    const key = currentWorld === 'cyber' ? 100 + levelIndex : levelIndex;
+    return bestScores[key];
+  };
+
   // Keep stats for the dashboard
-  const playedCount = Object.keys(bestScores).length;
-  const totalStrokes = Object.values(bestScores).reduce((a, b) => a + b, 0);
-  const totalParPlayed = Object.keys(bestScores).reduce((acc, key) => {
-    const idx = parseInt(key, 10);
-    return acc + (LEVELS[idx]?.par || 0);
+  const playedCount = activeLevels.filter((_, idx) => getLevelBestScore(idx) !== undefined).length;
+  const totalStrokes = activeLevels.reduce((acc, _, idx) => {
+    const score = getLevelBestScore(idx);
+    return acc + (score || 0);
+  }, 0);
+  const totalParPlayed = activeLevels.reduce((acc, lvl, idx) => {
+    const score = getLevelBestScore(idx);
+    return acc + (score !== undefined ? lvl.par : 0);
   }, 0);
   const totalDiff = totalStrokes - totalParPlayed;
 
@@ -98,14 +120,59 @@ export const GameMenu: React.FC<GameMenuProps> = ({
             {/* Title / Brand */}
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#db5641]/10 text-[#db5641] text-xs font-bold uppercase tracking-wider mb-2">
-                <Sparkles className="w-3.5 h-3.5" /> 60-Hole Championship
+                <Sparkles className="w-3.5 h-3.5" /> {currentWorld === 'cyber' ? '20-Hole Cyber World' : '60-Hole Championship'}
               </div>
               <h1 className="text-3xl font-extrabold tracking-tight text-[#3d312a] leading-none">
                 GOLF <span className="text-[#db5641]">LAB</span>
               </h1>
               <p className="text-xs text-[#7a7065] font-semibold mt-1 uppercase tracking-wider">
-                Physics Puzzle Sandbox
+                {currentWorld === 'cyber' ? 'Cyber Sandbox Mode' : 'Physics Puzzle Sandbox'}
               </p>
+            </div>
+
+            {/* Realm / World Selector */}
+            <div className="flex flex-col gap-1.5 bg-[#db5641]/5 p-2 rounded-2xl border border-[#db5641]/10">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#7a7065] px-1">Selected Realm:</span>
+              <div className="flex bg-[#efe6d4] p-0.5 rounded-xl text-xs font-bold border border-[#3d312a]/5">
+                <button
+                  onClick={() => onSelectWorld('classic')}
+                  className={`flex-1 py-1.5 rounded-lg text-center transition-all font-bold ${
+                    currentWorld === 'classic' ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
+                  }`}
+                >
+                  Classic
+                </button>
+                <button
+                  onClick={() => {
+                    if (isCyberUnlocked) {
+                      onSelectWorld('cyber');
+                    }
+                  }}
+                  disabled={!isCyberUnlocked}
+                  className={`flex-1 py-1.5 rounded-lg text-center transition-all font-bold flex items-center justify-center gap-1 relative ${
+                    !isCyberUnlocked 
+                      ? 'opacity-60 cursor-not-allowed text-[#7a7065]' 
+                      : currentWorld === 'cyber' 
+                      ? 'bg-[#121824] text-[#00f0ff] shadow-sm' 
+                      : 'text-[#7a7065]'
+                  }`}
+                >
+                  {isCyberUnlocked ? (
+                    <>
+                      <Bot className="w-3.5 h-3.5 text-[#00f0ff]" /> Cyber
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-[#7a7065]" /> Cyber
+                    </>
+                  )}
+                </button>
+              </div>
+              {!isCyberUnlocked && (
+                <span className="text-[9px] text-[#db5641] font-bold uppercase text-center tracking-wider mt-0.5">
+                  🔒 UNLOCKS AT HOLE 20
+                </span>
+              )}
             </div>
 
             {/* Navigation Tabs */}
@@ -134,7 +201,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 <span>Hole Directory</span>
                 {playedCount > 0 && (
                   <span className="ml-auto bg-[#db5641] text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    {playedCount}/60
+                    {playedCount}/{activeLevels.length}
                   </span>
                 )}
               </button>
@@ -402,7 +469,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 ) : (
                   <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-[#6ca750]/10 border border-[#6ca750]/20 rounded-2xl p-4 text-center">
-                      <span className="text-2xl font-black text-[#6ca750] block">{playedCount} / 60</span>
+                      <span className="text-2xl font-black text-[#6ca750] block">{playedCount} / {activeLevels.length}</span>
                       <span className="text-[10px] text-[#7a7065] font-bold uppercase tracking-wider">Holes Masters Completed</span>
                     </div>
                     <div className="bg-[#db5641]/10 border border-[#db5641]/20 rounded-2xl p-4 text-center">
@@ -422,11 +489,11 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                     </span>
                     <div>
                       <span className="text-[10px] text-[#7a7065] font-extrabold uppercase block tracking-wider">Current Hole Selection</span>
-                      <span className="font-extrabold text-[#3d312a] text-sm">{LEVELS[currentLevelIndex]?.name || `Level ${currentLevelIndex + 1}`}</span>
+                      <span className="font-extrabold text-[#3d312a] text-sm">{activeLevels[currentLevelIndex]?.name || `Level ${currentLevelIndex + 1}`}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-[#7a7065] font-bold bg-[#faf6ee] px-2.5 py-1 rounded-full border border-[#3d312a]/10">
-                    Par {LEVELS[currentLevelIndex]?.par}
+                    Par {activeLevels[currentLevelIndex]?.par}
                   </div>
                 </div>
               </div>
@@ -451,40 +518,48 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   <h2 className="text-xl font-black text-[#3d312a]">Hole Directory</h2>
                   
                   {/* Rows level tabs groups */}
-                  <div className="flex bg-[#efe6d4] p-0.5 rounded-xl text-xs font-bold border border-[#3d312a]/5">
-                    <button
-                      onClick={() => setLevelGroup(0)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        levelGroup === 0 ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
-                      }`}
-                    >
-                      Holes 1-20
-                    </button>
-                    <button
-                      onClick={() => setLevelGroup(1)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        levelGroup === 1 ? 'bg-[#faf6ee] text-[#288a7c] shadow-sm' : 'text-[#7a7065]'
-                      }`}
-                    >
-                      Holes 21-40: Cyber World
-                    </button>
-                    <button
-                      onClick={() => setLevelGroup(2)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        levelGroup === 2 ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
-                      }`}
-                    >
-                      Holes 41-60
-                    </button>
-                  </div>
+                  {currentWorld === 'classic' ? (
+                    <div className="flex bg-[#efe6d4] p-0.5 rounded-xl text-xs font-bold border border-[#3d312a]/5">
+                      <button
+                        onClick={() => setLevelGroup(0)}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                          levelGroup === 0 ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
+                        }`}
+                      >
+                        Holes 1-20
+                      </button>
+                      <button
+                        onClick={() => setLevelGroup(1)}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                          levelGroup === 1 ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
+                        }`}
+                      >
+                        Holes 21-40
+                      </button>
+                      <button
+                        onClick={() => setLevelGroup(2)}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                          levelGroup === 2 ? 'bg-[#faf6ee] text-[#db5641] shadow-sm' : 'text-[#7a7065]'
+                        }`}
+                      >
+                        Holes 41-60
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex bg-[#efe6d4] p-0.5 rounded-xl text-xs font-bold border border-[#3d312a]/5">
+                      <span className="px-3 py-1.5 rounded-lg bg-[#121824] text-[#00f0ff] shadow-sm">
+                        Cyber World (Holes 1-20)
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Scrollable scroll panel grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 h-[340px] overflow-y-auto pr-1">
                   {getGroupLevels().map((lvl) => {
                     const idx = lvl.id - 1;
-                    const isCompleted = bestScores[idx] !== undefined;
-                    const best = bestScores[idx];
+                    const best = getLevelBestScore(idx);
+                    const isCompleted = best !== undefined;
                     const isSelected = idx === currentLevelIndex;
 
                     return (

@@ -30,10 +30,13 @@ export const COLORS = {
   ANDROID: '#288a7c',    // Dark Teal (from 'n')
   DINO: '#d96b43',       // Terracotta Orange (from 'H', 'a')
   NEW_GREEN: '#288a7c',  // Teal Accent
-  CYBER: '#0a0a0f',      // Cyber world identifier
+  CYBER: '#060a14',      // Deep cyber void
   WHITE: '#faf6ee',      // Warm Watercolor paper white
   BLACK: '#3d312a',      // Charcoal rich coffee dark-brown
   FLAG: '#db5641',       // Vintage Coral
+  CYBER_GRID: '#00ffff', // Neon Cyan
+  CYBER_NEON: '#ff00ff', // Hot Magenta
+  CYBER_LASER: '#ff2255', // Red Laser
   
   // Environment (Golf Course Elements)
   WALL: '#7c5f4b',       // Warm terracotta / wooden boundaries
@@ -50,10 +53,6 @@ export const COLORS = {
   BOUNCY_PAD_SHADOW: 'rgba(27, 35, 48, 0.22)', // Matching shadow
   BOOST: '#288a7c',      // Teal boost glow
   GRASS_HIGHLIGHT: '#8cd96a', // Bright grass highlight
-  CYBER_BG: '#0d0e15',    // Deep dark synthwave background
-  CYBER_GRID: '#00ffcc', // Neon cyan grid lines
-  CYBER_NEON: '#ff00ff', // Hot magenta neon paths
-  CYBER_LASER: '#ff2255', // Danger laser
 };
 
 // Map characters
@@ -75,6 +74,3 @@ export const CHAR_WATER = 'W';
 export const CHAR_WATER_ARC = 'w';
 export const CHAR_SAND = 'Z';
 export const CHAR_SAND_ARC = 'z';
-export const CHAR_CYBER_LASER = 'L'; // Laser that resets the player
-export const CHAR_CYBER_BOUNCE = 'C'; // High velocity cyber bounce
-export const CHAR_CYBER_PORTAL = 'P'; // Portal to another P

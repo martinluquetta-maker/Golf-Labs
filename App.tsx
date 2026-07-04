@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GameCanvas from './components/GameCanvas';
-import { LEVELS } from './levels';
+import { LEVELS, CYBER_LEVELS } from './levels';
 import { GameState } from './types';
 import { getCaddyCommentary } from './services/geminiService';
 import { ENABLE_AI_CADDY, ENABLE_DEV_TOOLS } from './constants';
@@ -44,7 +44,24 @@ const App: React.FC = () => {
       const saved = sessionStorage.getItem('golf_lab_state');
       if (saved) {
         const parsed = JSON.parse(saved);
+        let initialWorld = parsed.currentWorld ?? 'classic';
+        if (initialWorld === 'cyber') {
+          const scores = parsed.bestScores ?? {};
+          const currentIdx = parsed.currentLevelIndex ?? 0;
+          const completedClassicLevel19 = scores[18] !== undefined;
+          const completedClassicLevel20 = scores[19] !== undefined;
+          const completedAnyLaterClassic = Object.keys(scores).some(k => {
+            const idx = parseInt(k, 10);
+            return idx >= 19 && idx < 100;
+          });
+          const reachedLevel20Classic = currentIdx >= 19;
+          const unlocked = completedClassicLevel19 || completedClassicLevel20 || completedAnyLaterClassic || reachedLevel20Classic;
+          if (!unlocked) {
+            initialWorld = 'classic';
+          }
+        }
         return {
+          currentWorld: initialWorld,
           currentLevelIndex: parsed.currentLevelIndex ?? 0,
           strokes: 0,
           totalScore: parsed.totalScore ?? 0,
@@ -61,6 +78,7 @@ const App: React.FC = () => {
       }
       
       return {
+        currentWorld: 'classic',
         currentLevelIndex: 0,
         strokes: 0,
         totalScore: 0,
@@ -78,6 +96,7 @@ const App: React.FC = () => {
       console.error("Error reading storage", e);
     }
     return {
+      currentWorld: 'classic',
       currentLevelIndex: 0,
       strokes: 0,
       totalScore: 0,
@@ -119,8 +138,25 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const currentLevel = LEVELS[gameState.currentLevelIndex];
-  const totalPar = LEVELS.reduce((acc, l) => acc + l.par, 0);
+  const activeLevels = useMemo(() => (gameState.currentWorld === 'cyber' ? CYBER_LEVELS : LEVELS), [gameState.currentWorld]);
+  const currentLevel = activeLevels[gameState.currentLevelIndex] || activeLevels[0] || LEVELS[0];
+  const totalPar = activeLevels.reduce((acc, l) => acc + l.par, 0);
+
+  const isCyberUnlocked = useMemo(() => {
+    if (user && user.email === 'martin.luquetta@sgs.edu.co') {
+      return true;
+    }
+    const scores = gameState.bestScores || {};
+    const completedClassicLevel19 = scores[18] !== undefined;
+    const completedClassicLevel20 = scores[19] !== undefined;
+    const completedAnyLaterClassic = Object.keys(scores).some(k => {
+      const idx = parseInt(k, 10);
+      return idx >= 19 && idx < 100;
+    });
+    const reachedLevel20Classic = gameState.currentWorld === 'classic' && gameState.currentLevelIndex >= 19;
+    
+    return completedClassicLevel19 || completedClassicLevel20 || completedAnyLaterClassic || reachedLevel20Classic;
+  }, [gameState.bestScores, gameState.currentWorld, gameState.currentLevelIndex, user]);
 
   const { playForeground, preloadCache } = useAudio();
 
@@ -143,8 +179,9 @@ const App: React.FC = () => {
   useEffect(() => {
     if (user && user.email === 'martin.luquetta@sgs.edu.co') {
       const cheatedCompleted: Record<number, number> = {};
-      LEVELS.forEach((_, index) => {
-        cheatedCompleted[index] = 1; // 1 stroke (hole in one)
+      activeLevels.forEach((_, index) => {
+        const key = gameState.currentWorld === 'cyber' ? 100 + index : index;
+        cheatedCompleted[key] = 1; // 1 stroke (hole in one)
       });
   
       setGameState(prev => ({
@@ -155,7 +192,7 @@ const App: React.FC = () => {
         bestScores: { ...prev.bestScores, ...cheatedCompleted }
       }));
     }
-  }, [user]);
+  }, [user, activeLevels, gameState.currentWorld]);
 
   // Firebase Init & Auth state hooks
   useEffect(() => {
@@ -312,6 +349,7 @@ const App: React.FC = () => {
     try {
       // Save game progress to tab session only
       sessionStorage.setItem('golf_lab_state', JSON.stringify({
+        currentWorld: gameState.currentWorld,
         currentLevelIndex: gameState.currentLevelIndex,
         totalScore: gameState.totalScore,
         points: gameState.points,
@@ -329,6 +367,7 @@ const App: React.FC = () => {
       console.error("Error writing to storage", e);
     }
   }, [
+    gameState.currentWorld,
     gameState.currentLevelIndex,
     gameState.totalScore,
     gameState.points,
@@ -342,8 +381,9 @@ const App: React.FC = () => {
   const totalBestDiffInfo = useMemo(() => {
     let totalDiff = 0;
     let playedCount = 0;
-    LEVELS.forEach((level, index) => {
-      const best = gameState.bestScores[index];
+    activeLevels.forEach((level, index) => {
+      const bestKey = gameState.currentWorld === 'cyber' ? 100 + index : index;
+      const best = gameState.bestScores[bestKey];
       if (best !== undefined) {
         totalDiff += (best - level.par);
         playedCount++;
@@ -351,7 +391,7 @@ const App: React.FC = () => {
     });
     const diffString = playedCount === 0 ? "—" : (totalDiff === 0 ? "Par" : (totalDiff > 0 ? `+${totalDiff}` : totalDiff.toString()));
     return { totalDiff, diffString, playedCount };
-  }, [gameState.bestScores]);
+  }, [gameState.bestScores, activeLevels, gameState.currentWorld]);
 
   // Handle Intro Commentary
   useEffect(() => {
@@ -386,14 +426,15 @@ const App: React.FC = () => {
     const currentLvlIndex = gameState.currentLevelIndex;
     const currentLvlPar = currentLevel.par;
     const currentLvlName = currentLevel.name;
-    const isFinalHole = currentLvlIndex >= LEVELS.length - 1;
+    const isFinalHole = currentLvlIndex >= activeLevels.length - 1;
 
     // Transition immediately without setTimeout delay
     setGameState(prev => {
         const newBestScores = { ...prev.bestScores };
-        const currentBest = newBestScores[currentLvlIndex];
+        const bestKey = prev.currentWorld === 'cyber' ? 100 + currentLvlIndex : currentLvlIndex;
+        const currentBest = newBestScores[bestKey];
         if (currentBest === undefined || finalStrokes < currentBest) {
-          newBestScores[currentLvlIndex] = finalStrokes;
+          newBestScores[bestKey] = finalStrokes;
         }
 
         const bonus = (currentLvlPar - finalStrokes) * 200;
@@ -437,7 +478,7 @@ const App: React.FC = () => {
   const nextLevel = async () => {
     playForeground(getPath("/media/audio/sfx/global/buttonclick.mp3"));
 
-    if (gameState.currentLevelIndex >= LEVELS.length - 1) {
+    if (gameState.currentLevelIndex >= activeLevels.length - 1) {
         setGameState(prev => ({ 
             ...prev, 
             state: 'GAME_OVER',
@@ -565,7 +606,7 @@ const App: React.FC = () => {
   const renderOverlay = () => {
     if (gameState.state === 'LEVEL_COMPLETE') {
         const scoreInfo = getScoreTerm(gameState.strokes, currentLevel.par);
-        const isFinal = gameState.currentLevelIndex >= LEVELS.length - 1;
+        const isFinal = gameState.currentLevelIndex >= activeLevels.length - 1;
         
         return (
             <div className="fixed inset-0 bg-[#3d312a]/50 flex items-center justify-center z-50 backdrop-blur-md p-[55px]">
@@ -726,6 +767,18 @@ const App: React.FC = () => {
             }));
             setShowMainMenu(false);
           }}
+          currentWorld={gameState.currentWorld || 'classic'}
+          onSelectWorld={(world) => {
+            if (world === 'cyber' && !isCyberUnlocked) return;
+            setGameState(prev => ({
+              ...prev,
+              currentWorld: world,
+              currentLevelIndex: 0,
+              strokes: 0,
+              state: 'AIMING'
+            }));
+          }}
+          isCyberUnlocked={isCyberUnlocked}
           bestScores={gameState.bestScores}
           aiCaddyEnabled={aiCaddyEnabled}
           onToggleAiCaddy={() => setAiCaddyEnabled(prev => !prev)}
@@ -751,7 +804,7 @@ const App: React.FC = () => {
       <Footer
         gameState={gameState}
         par={currentLevel.par}
-        numLevels={LEVELS.length}
+        numLevels={activeLevels.length}
         mulligan={mulligan}
       />
     </div>
