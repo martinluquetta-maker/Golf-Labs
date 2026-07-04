@@ -74,6 +74,7 @@ const App: React.FC = () => {
           coins: parsed.coins ?? 100,
           unlockedBallIds,
           equippedBallId,
+          holeInOneStreak: parsed.holeInOneStreak ?? 0,
         };
       }
       
@@ -91,6 +92,7 @@ const App: React.FC = () => {
         coins: 100,
         unlockedBallIds,
         equippedBallId,
+        holeInOneStreak: 0,
       };
     } catch (e) {
       console.error("Error reading storage", e);
@@ -109,6 +111,7 @@ const App: React.FC = () => {
       coins: 100,
       unlockedBallIds: ['classic_white'],
       equippedBallId: 'classic_white',
+      holeInOneStreak: 0,
     };
   });
   
@@ -356,6 +359,7 @@ const App: React.FC = () => {
         bestScores: gameState.bestScores,
         resetUnlocked: gameState.resetUnlocked,
         coins: gameState.coins ?? 100,
+        holeInOneStreak: gameState.holeInOneStreak ?? 0,
       }));
       
       // Save purchased and equipped balls to long-term local storage so skins persist across devices/refreshes
@@ -375,7 +379,8 @@ const App: React.FC = () => {
     gameState.resetUnlocked,
     gameState.coins,
     gameState.unlockedBallIds,
-    gameState.equippedBallId
+    gameState.equippedBallId,
+    gameState.holeInOneStreak
   ]);
 
   const totalBestDiffInfo = useMemo(() => {
@@ -414,11 +419,16 @@ const App: React.FC = () => {
   }, [gameState.currentLevelIndex, retryCount]); 
 
   const handleStroke = () => {
-    setGameState(prev => ({
-      ...prev,
-      strokes: prev.strokes + 1,
-      state: 'MOVING'
-    }));
+    setGameState(prev => {
+      const nextStrokes = prev.strokes + 1;
+      const nextStreak = nextStrokes > 1 ? 0 : (prev.holeInOneStreak ?? 0);
+      return {
+        ...prev,
+        strokes: nextStrokes,
+        holeInOneStreak: nextStreak,
+        state: 'MOVING'
+      };
+    });
   };
 
   const handleHole = useCallback(() => {
@@ -443,6 +453,9 @@ const App: React.FC = () => {
         const earnedCoins = calculateCoinsEarned(finalStrokes, currentLvlPar);
         const previousCoins = prev.coins ?? 100;
 
+        const isHoleInOne = finalStrokes === 1;
+        const nextStreak = isHoleInOne ? (prev.holeInOneStreak ?? 0) + 1 : 0;
+
         return { 
           ...prev, 
           state: isFinalHole ? 'GAME_OVER' : 'LEVEL_COMPLETE', 
@@ -451,6 +464,7 @@ const App: React.FC = () => {
           points: prev.points + holePoints,
           bestScores: newBestScores,
           coins: previousCoins + earnedCoins,
+          holeInOneStreak: nextStreak,
           // If it's final hole, add to total now so screen reflects it
           totalScore: isFinalHole ? prev.totalScore + finalStrokes : prev.totalScore,
           resetUnlocked: isFinalHole ? true : prev.resetUnlocked
@@ -511,6 +525,7 @@ const App: React.FC = () => {
         currentLevelIndex: 0,
         strokes: 0,
         totalScore: 0,
+        holeInOneStreak: 0,
         state: 'AIMING',
         lastCommentary: null,
         commentaryLoading: false
@@ -523,6 +538,7 @@ const App: React.FC = () => {
     setGameState(prev => ({
         ...prev,
         strokes: 0,
+        holeInOneStreak: 0,
         state: 'AIMING',
         lastCommentary: null,
         commentaryLoading: false
@@ -762,6 +778,7 @@ const App: React.FC = () => {
               ...prev,
               currentLevelIndex: levelIndex,
               strokes: 0,
+              holeInOneStreak: 0,
               state: 'AIMING',
               lastCommentary: null,
               commentaryLoading: false
@@ -776,6 +793,7 @@ const App: React.FC = () => {
               currentWorld: world,
               currentLevelIndex: 0,
               strokes: 0,
+              holeInOneStreak: 0,
               state: 'AIMING'
             }));
           }}
