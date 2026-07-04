@@ -115,7 +115,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
         className="relative bg-[#faf6ee] text-[#3d312a] w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row h-auto md:h-[620px] max-h-[95vh] border border-[#3d312a]/15 animate-in fade-in zoom-in-95 duration-300"
       >
         {/* Left Sidebar Menu Options */}
-        <div className="w-full md:w-64 bg-[#efe6d4] border-b md:border-b-0 md:border-r border-[#3d312a]/10 flex flex-col justify-between p-6">
+        <div className="w-full md:w-64 bg-[#efe6d4] border-b md:border-b-0 md:border-r border-[#3d312a]/10 flex flex-col justify-between p-6 overflow-y-auto">
           <div className="flex flex-col gap-6">
             {/* Title / Brand */}
             <div>
