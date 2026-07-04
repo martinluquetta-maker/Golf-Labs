@@ -738,6 +738,7 @@ const App: React.FC = () => {
           onStroke={handleStroke}
           onHole={handleHole}
           equippedBallId={gameState.equippedBallId ?? 'classic_white'}
+          strokes={gameState.strokes}
       />
       
       {/* Floating Main Menu Button (Top-Right) */}

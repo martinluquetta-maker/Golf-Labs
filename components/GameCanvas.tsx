@@ -66,17 +66,31 @@ interface PendingTeleport {
   exitConfig?: PortalExitConfig;
 }
 
+interface ConfettiParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  color: string;
+  size: number;
+  rotation: number;
+  rotationSpeed: number;
+  opacity: number;
+  shape: 'circle' | 'square' | 'triangle';
+}
+
 interface GameCanvasProps {
   level: LevelData;
   onStroke: () => void;
   onHole: () => void;
   equippedBallId?: string;
+  strokes: number;
 }
 
 const TARGET_FPS = 60;
 const FRAME_DURATION = 1000 / TARGET_FPS;
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equippedBallId }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equippedBallId, strokes }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wallsRef = useRef<Wall[]>([]);
@@ -101,6 +115,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
   const ballRef = useRef<Ball | null>(null); 
   const textureRef = useRef<HTMLImageElement | null>(null);
   const shockwavesRef = useRef<Array<{ x: number; y: number; r: number; maxR: number; color: string; alpha: number }>>([]);
+  const confettiParticlesRef = useRef<ConfettiParticle[]>([]);
   
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isAiming, setIsAiming] = useState(false);
@@ -503,7 +518,50 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
     };
   }, [isAiming, handleMouseMove, handleMouseUp]);
 
+  const triggerConfetti = useCallback(() => {
+    const h = holeRef.current;
+    if (!h) return;
+    const colors = ['#ff2a2a', '#ff9f2a', '#ffea2a', '#2aff2a', '#2affea', '#2a2aff', '#ea2aff', '#ff2aea', '#00f0ff', '#ff00ff'];
+    const shapes: ('circle' | 'square' | 'triangle')[] = ['circle', 'square', 'triangle'];
+    
+    const newParticles: ConfettiParticle[] = [];
+    for (let i = 0; i < 80; i++) {
+        const angle = Math.PI * 1.2 + Math.random() * Math.PI * 0.6; // upward arc
+        const speed = 4 + Math.random() * 8;
+        newParticles.push({
+            x: h.x,
+            y: h.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 2, // upward velocity bias
+            color: colors[Math.floor(Math.random() * colors.length)],
+            size: 4 + Math.random() * 6,
+            rotation: Math.random() * Math.PI * 2,
+            rotationSpeed: -0.1 + Math.random() * 0.2,
+            opacity: 1,
+            shape: shapes[Math.floor(Math.random() * shapes.length)]
+        });
+    }
+    confettiParticlesRef.current = newParticles;
+  }, []);
+
   const update = useCallback(() => {
+    // Update confetti particles
+    const particles = confettiParticlesRef.current;
+    if (particles.length > 0) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.15; // gravity
+        p.vx *= 0.98; // air resistance
+        p.rotation += p.rotationSpeed;
+        p.opacity -= 0.015; // fade out
+        if (p.opacity <= 0 || p.y > dimensions.height + 50) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
     const b = ballRef.current;
     if (!b || b.sunk) return;
 
@@ -957,6 +1015,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
                 b.vel.x = 0; b.vel.y = 0;
                 b.isMoving = false; b.sunk = true;
                 playForeground(getPath("/media/audio/sfx/minigolf/intohole.mp3"));
+                if (strokes === 1) {
+                    triggerConfetti();
+                }
                 onHole();
             }
         }
@@ -974,7 +1035,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         setIsBallMoving(b.isMoving);
       }
     }
-  }, [onHole, level.grid, onStroke, isBallMoving]);
+  }, [onHole, level.grid, onStroke, isBallMoving, strokes, dimensions.height, triggerConfetti]);
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1762,6 +1823,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
     ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(h.x, h.y - 40); ctx.strokeStyle = COLORS.WHITE; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(h.x + 2, h.y - 40); ctx.lineTo(h.x + 18, h.y - 32); ctx.lineTo(h.x + 2, h.y - 24); ctx.closePath();
     ctx.fillStyle = COLORS.FLAG; ctx.fill(); ctx.strokeStyle = COLORS.WHITE; ctx.lineWidth = 1; ctx.stroke();
+
+    // Draw confetti particles
+    confettiParticlesRef.current.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.opacity;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        
+        ctx.beginPath();
+        if (p.shape === 'circle') {
+            ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        } else if (p.shape === 'triangle') {
+            ctx.moveTo(0, -p.size / 2);
+            ctx.lineTo(p.size / 2, p.size / 2);
+            ctx.lineTo(-p.size / 2, p.size / 2);
+            ctx.closePath();
+        } else {
+            // square
+            ctx.rect(-p.size / 2, -p.size / 2, p.size, p.size);
+        }
+        ctx.fill();
+        ctx.restore();
+    });
 
     ctx.restore();
   }, [isAiming, dragStart, dragCurrent, level, dimensions, touchControlsEnabled, touchAngle, touchPower]);
