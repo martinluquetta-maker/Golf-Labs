@@ -1,6 +1,6 @@
 {
   "name": "Remix: Hole in one",
-  "description": "A top-down mini-golf game where levels are shaped like characters. Features physics-based gameplay, drag-to-shoot controls, and an AI caddy powered by Gemini.",
+  "description": "A top-down mini-golf game featuring 100 collectible balls and 100 particle trails across Common, Rare, Legendary, and Mythical rarities, Daily Shop rotation, Mystery Ball Chests & Trail Boxes, physics-based gameplay, and an AI caddy.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

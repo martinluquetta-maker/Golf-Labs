@@ -21,8 +21,13 @@ interface GameMenuProps {
   coins: number;
   unlockedBallIds: string[];
   equippedBallId: string;
+  unlockedTrailIds?: string[];
+  equippedTrailId?: string;
   onBuyBall: (id: string, price: number) => void;
   onEquipBall: (id: string) => void;
+  onBuyTrail?: (id: string, price: number) => void;
+  onEquipTrail?: (id: string) => void;
+  onAddCoins?: (amount: number) => void;
   user: any;
   onLogin: () => Promise<void>;
   onLogout: () => Promise<void>;
@@ -44,8 +49,13 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   coins,
   unlockedBallIds,
   equippedBallId,
+  unlockedTrailIds = ['trail_dust_white'],
+  equippedTrailId = 'trail_dust_white',
   onBuyBall,
   onEquipBall,
+  onBuyTrail = () => {},
+  onEquipTrail = () => {},
+  onAddCoins = () => {},
   user,
   onLogin,
   onLogout,
@@ -353,16 +363,16 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                       </div>
                     </div>
                     
-                    <div className="pt-1.5 border-t border-red-200/50 space-y-1 text-[9px] text-red-800">
-                      <p className="font-bold text-red-910">Playing on Vercel or a custom domain?</p>
-                      <p className="leading-relaxed mt-1 text-red-950">
-                        The default AI Studio cloud database only allows logins from internal AI Studio domains (<code>*.run.app</code>). You cannot modify its allowed domains.
+                    <div className="pt-1.5 border-t border-red-200/50 space-y-1.5 text-[9px] text-red-800">
+                      <p className="font-bold text-red-950">How to authorize this domain in Firebase:</p>
+                      <p className="leading-relaxed text-red-900">
+                        Firebase blocks authentication requests until the hosting domain is authorized in your project.
                       </p>
-                      <ol className="list-decimal list-inside space-y-1.5 pl-0.5 mt-2 font-semibold">
-                        <li>Go to the <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline text-red-900 font-extrabold hover:text-red-950">Firebase Console</a> and create your own free project.</li>
-                        <li>Enable <b>Authentication</b> (Google Provider) and <b>Firestore Database</b>.</li>
-                        <li>In Auth Settings {'>'} Authorized Domains, add your Vercel address.</li>
-                        <li>Copy your new Firebase config into `firebase-applet-config.json`.</li>
+                      <ol className="list-decimal list-inside space-y-1 pl-0.5 font-semibold text-red-950">
+                        <li>Open your <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline text-red-900 font-extrabold hover:text-red-950">Firebase Console</a> &rarr; select <b>golf-labs</b></li>
+                        <li>Go to <b>Authentication</b> &rarr; <b>Settings</b> tab</li>
+                        <li>Click <b>Authorized domains</b> &rarr; <b>Add domain</b></li>
+                        <li>Paste: <code className="bg-red-100/80 px-1 py-0.5 rounded text-[8.5px] font-mono select-all font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'your-domain.run.app'}</code></li>
                       </ol>
                       
                       <div className="pt-1 flex gap-1">
@@ -372,7 +382,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                           className="flex-1 bg-red-100 hover:bg-red-200 text-red-900 font-extrabold py-1 px-1.5 rounded-md flex items-center justify-center gap-1 transition-colors text-[9px]"
                         >
                           {copied ? <Check className="w-2.5 h-2.5 text-[#6ca750]" /> : <Copy className="w-2.5 h-2.5" />}
-                          <span>{copied ? 'Copied hostname!' : 'Copy Domain'}</span>
+                          <span>{copied ? 'Copied hostname!' : 'Copy Current Domain'}</span>
                         </button>
                         <button
                           type="button"
@@ -624,8 +634,13 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               coins={coins}
               unlockedBallIds={unlockedBallIds}
               equippedBallId={equippedBallId}
+              unlockedTrailIds={unlockedTrailIds}
+              equippedTrailId={equippedTrailId}
               onBuyBall={onBuyBall}
               onEquipBall={onEquipBall}
+              onBuyTrail={onBuyTrail}
+              onEquipTrail={onEquipTrail}
+              onAddCoins={onAddCoins}
             />
           )}
 

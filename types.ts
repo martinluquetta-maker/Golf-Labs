@@ -71,6 +71,8 @@ export interface GameState {
   coins?: number;
   unlockedBallIds?: string[];
   equippedBallId?: string;
+  unlockedTrailIds?: string[];
+  equippedTrailId?: string;
   holeInOneStreak?: number;
 }
 

@@ -42,7 +42,7 @@ import { getPath } from "../utils/path";
 
 import { ICON_PATHS } from './Icons';
 import { PORTRAIT_SCALE_OVERRIDES } from '../levels';
-import { BALLS_STORE_ITEMS } from './BallStoreData';
+import { BALLS_STORE_ITEMS, TRAILS_STORE_ITEMS, TrailItem } from './BallStoreData';
 
 interface BoostTile extends Vector2 {
   dx: number;
@@ -79,18 +79,34 @@ interface ConfettiParticle {
   shape: 'circle' | 'square' | 'triangle';
 }
 
+interface TrailParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  color: string;
+  secondaryColor?: string;
+  size: number;
+  alpha: number;
+  maxLife: number;
+  life: number;
+  type: string;
+  glow?: string;
+}
+
 interface GameCanvasProps {
   level: LevelData;
   onStroke: () => void;
   onHole: () => void;
   equippedBallId?: string;
+  equippedTrailId?: string;
   strokes: number;
 }
 
 const TARGET_FPS = 60;
 const FRAME_DURATION = 1000 / TARGET_FPS;
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equippedBallId, strokes }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equippedBallId, equippedTrailId, strokes }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wallsRef = useRef<Wall[]>([]);
@@ -116,6 +132,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
   const textureRef = useRef<HTMLImageElement | null>(null);
   const shockwavesRef = useRef<Array<{ x: number; y: number; r: number; maxR: number; color: string; alpha: number }>>([]);
   const confettiParticlesRef = useRef<ConfettiParticle[]>([]);
+  const trailParticlesRef = useRef<TrailParticle[]>([]);
   
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isAiming, setIsAiming] = useState(false);
@@ -731,6 +748,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
     });
 
     if (b.isMoving) {
+        // Spawn trail particles based on equipped trail
+        const currentSpeed = Math.hypot(b.vel.x, b.vel.y);
+        if (currentSpeed > 0.3) {
+            const activeTrail = TRAILS_STORE_ITEMS.find(t => t.id === equippedTrailId) || TRAILS_STORE_ITEMS[0];
+            const spawnCount = Math.min(3, Math.max(1, Math.floor(currentSpeed / 3.5)));
+            for (let i = 0; i < spawnCount; i++) {
+                const jitterAngle = Math.random() * Math.PI * 2;
+                const jitterDist = Math.random() * (b.radius * 0.7);
+                trailParticlesRef.current.push({
+                    x: b.pos.x + Math.cos(jitterAngle) * jitterDist,
+                    y: b.pos.y + Math.sin(jitterAngle) * jitterDist,
+                    vx: -b.vel.x * 0.14 + (Math.random() - 0.5) * 1.5,
+                    vy: -b.vel.y * 0.14 + (Math.random() - 0.5) * 1.5,
+                    color: activeTrail.color,
+                    secondaryColor: activeTrail.secondaryColor,
+                    size: (activeTrail.size || 3.5) * (0.8 + Math.random() * 0.5),
+                    alpha: 0.95,
+                    maxLife: 24,
+                    life: 0,
+                    type: activeTrail.particleType,
+                    glow: activeTrail.glowColor,
+                });
+            }
+        }
+
         const SUBSTEPS = 12;
         let collided = false;
         
@@ -1029,13 +1071,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         }
     }
 
+    // Update active trail particles
+    trailParticlesRef.current.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life++;
+        p.alpha = Math.max(0, 1 - (p.life / p.maxLife));
+    });
+    trailParticlesRef.current = trailParticlesRef.current.filter(p => p.life < p.maxLife);
+
     // Sync isBallMoving React state at physics boundary triggers
     if (b) {
       if (b.isMoving !== isBallMoving) {
         setIsBallMoving(b.isMoving);
       }
     }
-  }, [onHole, level.grid, onStroke, isBallMoving, strokes, dimensions.height, triggerConfetti]);
+  }, [onHole, level.grid, onStroke, isBallMoving, strokes, dimensions.height, triggerConfetti, equippedTrailId]);
 
   const render = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1579,6 +1630,88 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
     const h = holeRef.current;
     ctx.beginPath(); ctx.arc(h.x, h.y, HOLE_RADIUS, 0, Math.PI * 2); ctx.fillStyle = COLORS.BLACK; ctx.fill();
     
+    // Draw Custom Trail Particles
+    trailParticlesRef.current.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      if (p.glow) {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = p.glow;
+      }
+
+      if (p.type === 'flame' || p.type === 'phoenix' || p.type === 'dragon') {
+        const radGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+        radGrad.addColorStop(0, p.secondaryColor || '#ffff88');
+        radGrad.addColorStop(0.6, p.color);
+        radGrad.addColorStop(1, 'rgba(255,0,0,0)');
+        ctx.fillStyle = radGrad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 + (p.life / p.maxLife) * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type === 'lightning' || p.type === 'circuit' || p.type === 'glitch') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + (Math.random() - 0.5) * 8 + p.vx * 2, p.y + (Math.random() - 0.5) * 8 + p.vy * 2);
+        ctx.stroke();
+      } else if (p.type === 'laser') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 3.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x - p.vx * 2, p.y - p.vy * 2);
+        ctx.lineTo(p.x + p.vx * 2, p.y + p.vy * 2);
+        ctx.stroke();
+      } else if (p.type === 'star' || p.type === 'spark') {
+        ctx.fillStyle = p.color;
+        const spikes = 4;
+        const outer = p.size;
+        const inner = p.size * 0.4;
+        ctx.beginPath();
+        for (let i = 0; i < spikes * 2; i++) {
+          const rot = (i * Math.PI) / spikes + (p.life * 0.15);
+          const r = i % 2 === 0 ? outer : inner;
+          ctx.lineTo(p.x + Math.cos(rot) * r, p.y + Math.sin(rot) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else if (p.type === 'rings' || p.type === 'portal') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.5 + (p.life / p.maxLife) * 1.5), 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (p.type === 'hearts') {
+        ctx.fillStyle = p.color;
+        ctx.font = `${Math.round(p.size * 2)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('♥', p.x, p.y);
+      } else if (p.type === 'coins') {
+        ctx.fillStyle = '#eab308';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ca8a04';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      } else if (p.type === 'bubble' || p.type === 'ice') {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 - (p.life / p.maxLife) * 0.3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
 
     const b = ballRef.current;
     // Don't render ball if it's currently "teleporting"
@@ -1594,7 +1727,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         // If it's a glowing ball, apply canvas shadow properties
         if (activeBall.glowColor) {
             ctx.save();
-            ctx.shadowBlur = b.radius * 0.9;
+            ctx.shadowBlur = b.radius * 1.2;
             ctx.shadowColor = activeBall.glowColor;
         }
 
@@ -1602,24 +1735,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         ctx.beginPath(); 
         ctx.arc(b.pos.x, b.pos.y, b.radius, 0, Math.PI * 2);
         
-        if (activeBall.id === 'solid_gold') {
+        // Handle ball material gradients based on specialType or custom IDs
+        if (activeBall.specialType === 'gold' || activeBall.id === 'solid_gold') {
           const goldGrad = ctx.createRadialGradient(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, 0, b.pos.x, b.pos.y, b.radius);
           goldGrad.addColorStop(0, '#fff9b5');
           goldGrad.addColorStop(0.5, '#ffd700');
           goldGrad.addColorStop(1, '#a67c00');
           ctx.fillStyle = goldGrad;
-        } else if (activeBall.id === 'cosmic_nebula') {
+        } else if (activeBall.specialType === 'cosmic' || activeBall.id === 'cosmic_nebula' || activeBall.specialType === 'void') {
           const cosmicGrad = ctx.createRadialGradient(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, 0, b.pos.x, b.pos.y, b.radius);
-          cosmicGrad.addColorStop(0, '#bd5bf5');
-          cosmicGrad.addColorStop(0.4, '#240449');
+          cosmicGrad.addColorStop(0, activeBall.secondaryColor || '#bd5bf5');
+          cosmicGrad.addColorStop(0.5, activeBall.color);
           cosmicGrad.addColorStop(1, '#020005');
           ctx.fillStyle = cosmicGrad;
-        } else if (activeBall.id === 'lava_fireball') {
+        } else if (activeBall.specialType === 'fire' || activeBall.id === 'lava_fireball') {
           const fireGrad = ctx.createRadialGradient(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, 0, b.pos.x, b.pos.y, b.radius);
           fireGrad.addColorStop(0, '#ffea73');
-          fireGrad.addColorStop(0.5, '#ff4b00');
+          fireGrad.addColorStop(0.5, activeBall.color);
           fireGrad.addColorStop(1, '#810000');
           ctx.fillStyle = fireGrad;
+        } else if (activeBall.specialType === 'diamond' || activeBall.specialType === 'chrome') {
+          const chromeGrad = ctx.createRadialGradient(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, 0, b.pos.x, b.pos.y, b.radius);
+          chromeGrad.addColorStop(0, '#ffffff');
+          chromeGrad.addColorStop(0.4, activeBall.secondaryColor || '#e0f2fe');
+          chromeGrad.addColorStop(1, activeBall.color);
+          ctx.fillStyle = chromeGrad;
+        } else if (activeBall.specialType === 'rainbow' || activeBall.specialType === 'aurora') {
+          const rainbowGrad = ctx.createRadialGradient(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, 0, b.pos.x, b.pos.y, b.radius);
+          rainbowGrad.addColorStop(0, '#f43f5e');
+          rainbowGrad.addColorStop(0.35, '#eab308');
+          rainbowGrad.addColorStop(0.7, '#06b6d4');
+          rainbowGrad.addColorStop(1, '#8b5cf6');
+          ctx.fillStyle = rainbowGrad;
+        } else if (activeBall.secondaryColor) {
+          const dualGrad = ctx.createRadialGradient(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, 0, b.pos.x, b.pos.y, b.radius);
+          dualGrad.addColorStop(0, activeBall.secondaryColor);
+          dualGrad.addColorStop(1, activeBall.color);
+          ctx.fillStyle = dualGrad;
         } else {
           ctx.fillStyle = activeBall.color;
         }
@@ -1643,8 +1795,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         }
         ctx.restore();
 
-        // Specific marking details
-        if (activeBall.is8Ball) {
+        // Pattern overlays
+        if (activeBall.specialType === '8ball' || activeBall.id === '8_ball') {
           ctx.beginPath();
           ctx.arc(b.pos.x, b.pos.y, b.radius * 0.45, 0, Math.PI * 2);
           ctx.fillStyle = '#ffffff';
@@ -1657,34 +1809,31 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
           ctx.fillText('8', b.pos.x, b.pos.y + 0.5);
         }
 
-        if (activeBall.isDonut) {
+        if (activeBall.specialType === 'donut' || activeBall.id === 'glazed_donut') {
           // Donut hole
           ctx.beginPath();
           ctx.arc(b.pos.x, b.pos.y, b.radius * 0.28, 0, Math.PI * 2);
-          ctx.fillStyle = '#f2edd9'; // Sand-like color (matches greensward/trap colors)
+          ctx.fillStyle = '#f2edd9';
           ctx.fill();
           ctx.strokeStyle = '#8a4f1d';
           ctx.lineWidth = 0.8;
           ctx.stroke();
 
-          // Sprinkles (Small colored segment lines)
+          // Sprinkles
           ctx.lineWidth = 1.6;
           ctx.lineCap = 'round';
-          
-          ctx.strokeStyle = '#3b82f6'; // Blue
+          ctx.strokeStyle = '#3b82f6';
           ctx.beginPath(); ctx.moveTo(b.pos.x - b.radius * 0.45, b.pos.y + b.radius * 0.1); ctx.lineTo(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.1); ctx.stroke();
-
-          ctx.strokeStyle = '#eab308'; // Yellow
+          ctx.strokeStyle = '#eab308';
           ctx.beginPath(); ctx.moveTo(b.pos.x + b.radius * 0.35, b.pos.y + b.radius * 0.25); ctx.lineTo(b.pos.x + b.radius * 0.2, b.pos.y + b.radius * 0.38); ctx.stroke();
-          
-          ctx.strokeStyle = '#a855f7'; // Purple
+          ctx.strokeStyle = '#a855f7';
           ctx.beginPath(); ctx.moveTo(b.pos.x - b.radius * 0.1, b.pos.y - b.radius * 0.45); ctx.lineTo(b.pos.x + b.radius * 0.1, b.pos.y - b.radius * 0.4); ctx.stroke();
         }
 
-        if (activeBall.hasStripe) {
+        if (activeBall.pattern === 'stripe') {
           ctx.save();
           ctx.strokeStyle = activeBall.secondaryColor || '#1d1916';
-          ctx.lineWidth = 2.2;
+          ctx.lineWidth = 2.4;
           ctx.beginPath();
           const angleRad = 25 * Math.PI / 180;
           const cosA = Math.cos(angleRad);
@@ -1695,21 +1844,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
           ctx.restore();
         }
 
-        if (activeBall.hasDualRing) {
+        if (activeBall.pattern === 'dual_ring') {
           ctx.save();
-          ctx.strokeStyle = '#e35112';
+          ctx.strokeStyle = activeBall.secondaryColor || '#e35112';
           ctx.lineWidth = 0.9;
           ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.radius * 0.65, 0, Math.PI * 2); ctx.stroke();
-          
-          ctx.strokeStyle = '#1a1a1a';
+          ctx.strokeStyle = activeBall.textColor || '#1a1a1a';
           ctx.lineWidth = 0.9;
           ctx.beginPath(); ctx.arc(b.pos.x, b.pos.y, b.radius * 0.76, 0, Math.PI * 2); ctx.stroke();
           ctx.restore();
         }
 
-        if (activeBall.hasTruvis) {
+        if (activeBall.pattern === 'truvis') {
           ctx.save();
-          ctx.fillStyle = '#db5641';
+          ctx.fillStyle = activeBall.secondaryColor || '#db5641';
           const rSub = b.radius * 0.28;
           const angles = [0, Math.PI/2, Math.PI, 3*Math.PI/2];
           angles.forEach(ang => {
@@ -1719,16 +1867,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
             ctx.arc(tx, ty, rSub, 0, Math.PI * 2);
             ctx.fill();
           });
-          // Center stamp
           ctx.beginPath();
           ctx.arc(b.pos.x, b.pos.y, rSub * 0.9, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         }
 
-        if (activeBall.hasNumberOne) {
+        if (activeBall.pattern === 'dots' || activeBall.pattern === 'stars') {
           ctx.save();
-          ctx.fillStyle = '#db5641';
+          ctx.fillStyle = activeBall.secondaryColor || '#ffffff';
+          const dotCount = 5;
+          for (let i = 0; i < dotCount; i++) {
+            const ang = (i * Math.PI * 2) / dotCount;
+            const dx = Math.cos(ang) * (b.radius * 0.55);
+            const dy = Math.sin(ang) * (b.radius * 0.55);
+            ctx.beginPath();
+            ctx.arc(b.pos.x + dx, b.pos.y + dy, b.radius * 0.16, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        if (activeBall.pattern === 'number' || activeBall.id === 'pro_v1') {
+          ctx.save();
+          ctx.fillStyle = activeBall.textColor || '#db5641';
           ctx.font = `900 ${Math.round(b.radius * 0.44)}px monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
@@ -1736,7 +1898,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
           
           ctx.fillStyle = '#3d312a';
           ctx.font = `600 ${Math.round(b.radius * 0.25)}px sans-serif`;
-          ctx.fillText('ProV1', b.pos.x, b.pos.y - b.radius * 0.35);
+          ctx.fillText('PRO', b.pos.x, b.pos.y - b.radius * 0.35);
           ctx.restore();
         }
 

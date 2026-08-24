@@ -30,15 +30,24 @@ import { onAuthStateChanged } from 'firebase/auth';
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
-      // Look for ball purchases in long-term offline storage
+      // Look for ball and trail purchases in long-term offline storage
       let unlockedBallIds = ['classic_white'];
       let equippedBallId = 'classic_white';
+      let unlockedTrailIds = ['trail_dust_white'];
+      let equippedTrailId = 'trail_dust_white';
       
       const savedBalls = window.localStorage.getItem('golf_lab_balls');
       if (savedBalls) {
         const parsedBalls = JSON.parse(savedBalls);
         if (parsedBalls.unlockedBallIds) unlockedBallIds = parsedBalls.unlockedBallIds;
         if (parsedBalls.equippedBallId) equippedBallId = parsedBalls.equippedBallId;
+      }
+
+      const savedTrails = window.localStorage.getItem('golf_lab_trails');
+      if (savedTrails) {
+        const parsedTrails = JSON.parse(savedTrails);
+        if (parsedTrails.unlockedTrailIds) unlockedTrailIds = parsedTrails.unlockedTrailIds;
+        if (parsedTrails.equippedTrailId) equippedTrailId = parsedTrails.equippedTrailId;
       }
       
       const saved = sessionStorage.getItem('golf_lab_state');
@@ -74,6 +83,8 @@ const App: React.FC = () => {
           coins: parsed.coins ?? 100,
           unlockedBallIds,
           equippedBallId,
+          unlockedTrailIds,
+          equippedTrailId,
           holeInOneStreak: parsed.holeInOneStreak ?? 0,
         };
       }
@@ -92,6 +103,8 @@ const App: React.FC = () => {
         coins: 100,
         unlockedBallIds,
         equippedBallId,
+        unlockedTrailIds,
+        equippedTrailId,
         holeInOneStreak: 0,
       };
     } catch (e) {
@@ -111,6 +124,8 @@ const App: React.FC = () => {
       coins: 100,
       unlockedBallIds: ['classic_white'],
       equippedBallId: 'classic_white',
+      unlockedTrailIds: ['trail_dust_white'],
+      equippedTrailId: 'trail_dust_white',
       holeInOneStreak: 0,
     };
   });
@@ -367,6 +382,12 @@ const App: React.FC = () => {
         unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
         equippedBallId: gameState.equippedBallId ?? 'classic_white',
       }));
+
+      // Save purchased and equipped trails to long-term storage
+      window.localStorage.setItem('golf_lab_trails', JSON.stringify({
+        unlockedTrailIds: gameState.unlockedTrailIds ?? ['trail_dust_white'],
+        equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
+      }));
     } catch (e) {
       console.error("Error writing to storage", e);
     }
@@ -380,6 +401,8 @@ const App: React.FC = () => {
     gameState.coins,
     gameState.unlockedBallIds,
     gameState.equippedBallId,
+    gameState.unlockedTrailIds,
+    gameState.equippedTrailId,
     gameState.holeInOneStreak
   ]);
 
@@ -567,12 +590,12 @@ const App: React.FC = () => {
   const handleBuyBall = useCallback((id: string, price: number) => {
     setGameState(prev => {
       const currentCoins = prev.coins ?? 100;
-      if (currentCoins < price) return prev;
+      if (price > 0 && currentCoins < price) return prev;
       const currentUnlocked = prev.unlockedBallIds ?? ['classic_white'];
       return {
         ...prev,
-        coins: currentCoins - price,
-        unlockedBallIds: [...currentUnlocked, id],
+        coins: Math.max(0, currentCoins - price),
+        unlockedBallIds: currentUnlocked.includes(id) ? currentUnlocked : [...currentUnlocked, id],
         equippedBallId: id,
       };
     });
@@ -587,6 +610,38 @@ const App: React.FC = () => {
         equippedBallId: id,
       };
     });
+  }, []);
+
+  const handleBuyTrail = useCallback((id: string, price: number) => {
+    setGameState(prev => {
+      const currentCoins = prev.coins ?? 100;
+      if (price > 0 && currentCoins < price) return prev;
+      const currentUnlocked = prev.unlockedTrailIds ?? ['trail_dust_white'];
+      return {
+        ...prev,
+        coins: Math.max(0, currentCoins - price),
+        unlockedTrailIds: currentUnlocked.includes(id) ? currentUnlocked : [...currentUnlocked, id],
+        equippedTrailId: id,
+      };
+    });
+  }, []);
+
+  const handleEquipTrail = useCallback((id: string) => {
+    setGameState(prev => {
+      const currentUnlocked = prev.unlockedTrailIds ?? ['trail_dust_white'];
+      if (!currentUnlocked.includes(id)) return prev;
+      return {
+        ...prev,
+        equippedTrailId: id,
+      };
+    });
+  }, []);
+
+  const handleAddCoins = useCallback((amount: number) => {
+    setGameState(prev => ({
+      ...prev,
+      coins: Math.max(0, (prev.coins ?? 100) + amount),
+    }));
   }, []);
 
   const renderHUD = () => {
@@ -754,6 +809,7 @@ const App: React.FC = () => {
           onStroke={handleStroke}
           onHole={handleHole}
           equippedBallId={gameState.equippedBallId ?? 'classic_white'}
+          equippedTrailId={gameState.equippedTrailId ?? 'trail_dust_white'}
           strokes={gameState.strokes}
       />
       
@@ -805,8 +861,13 @@ const App: React.FC = () => {
           coins={gameState.coins ?? 100}
           unlockedBallIds={gameState.unlockedBallIds ?? ['classic_white']}
           equippedBallId={gameState.equippedBallId ?? 'classic_white'}
+          unlockedTrailIds={gameState.unlockedTrailIds ?? ['trail_dust_white']}
+          equippedTrailId={gameState.equippedTrailId ?? 'trail_dust_white'}
           onBuyBall={handleBuyBall}
           onEquipBall={handleEquipBall}
+          onBuyTrail={handleBuyTrail}
+          onEquipTrail={handleEquipTrail}
+          onAddCoins={handleAddCoins}
           user={user}
           onLogin={handleLogin}
           onLogout={handleLogout}
