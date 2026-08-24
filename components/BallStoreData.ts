@@ -1036,3 +1036,7 @@ export const calculateCoinsEarned = (strokes: number, par: number): number => {
   }
   return earned;
 };
+
+export const ALL_BALL_IDS: string[] = BALLS_STORE_ITEMS.map(b => b.id);
+export const ALL_TRAIL_IDS: string[] = TRAILS_STORE_ITEMS.map(t => t.id);
+

@@ -17,7 +17,7 @@ import useAudio from "./hooks/useAudio";
 import { getPath } from "./utils/path";
 import InfoDialog from './components/builds/infoDialog.tsx';
 import { GameMenu } from './components/GameMenu';
-import { calculateCoinsEarned } from './components/BallStoreData';
+import { calculateCoinsEarned, ALL_BALL_IDS, ALL_TRAIL_IDS } from './components/BallStoreData';
 import { 
   getFirebaseServices, 
   authenticateWithGoogle, 
@@ -160,8 +160,15 @@ const App: React.FC = () => {
   const currentLevel = activeLevels[gameState.currentLevelIndex] || activeLevels[0] || LEVELS[0];
   const totalPar = activeLevels.reduce((acc, l) => acc + l.par, 0);
 
+  const isMartinUser = useCallback((u: any) => {
+    if (!u) return false;
+    const email = (u.email || '').toLowerCase().trim();
+    const name = (u.displayName || '').toLowerCase().trim();
+    return email === 'martin.luquetta@sgs.edu.co' || name === 'martin' || email.startsWith('martin.luquetta');
+  }, []);
+
   const isCyberUnlocked = useMemo(() => {
-    if (user && user.email === 'martin.luquetta@sgs.edu.co') {
+    if (isMartinUser(user)) {
       return true;
     }
     const scores = gameState.bestScores || {};
@@ -174,7 +181,7 @@ const App: React.FC = () => {
     const reachedLevel20Classic = gameState.currentWorld === 'classic' && gameState.currentLevelIndex >= 19;
     
     return completedClassicLevel19 || completedClassicLevel20 || completedAnyLaterClassic || reachedLevel20Classic;
-  }, [gameState.bestScores, gameState.currentWorld, gameState.currentLevelIndex, user]);
+  }, [gameState.bestScores, gameState.currentWorld, gameState.currentLevelIndex, user, isMartinUser]);
 
   const { playForeground, preloadCache } = useAudio();
 
@@ -193,9 +200,9 @@ const App: React.FC = () => {
     preloadCache(audioFiles);
   }, []);
 
-  // Cheat: Auto-grant massive amount of coins and complete all holes with hole-in-one ONLY for the developer account
+  // Developer & VIP Account Perks: Unlock ALL 100 balls, 100 trails, unlimited coins, and all levels
   useEffect(() => {
-    if (user && user.email === 'martin.luquetta@sgs.edu.co') {
+    if (isMartinUser(user)) {
       const cheatedCompleted: Record<number, number> = {};
       activeLevels.forEach((_, index) => {
         const key = gameState.currentWorld === 'cyber' ? 100 + index : index;
@@ -205,12 +212,13 @@ const App: React.FC = () => {
       setGameState(prev => ({
         ...prev,
         // We use 9 quadrillion because standard safe JavaScript integers max out at ~9.007 quadrillion
-        // and going above that breaks Firebase Firestore type validation for integers.
         coins: Math.max(prev.coins || 0, 9000000000000000),
+        unlockedBallIds: ALL_BALL_IDS,
+        unlockedTrailIds: ALL_TRAIL_IDS,
         bestScores: { ...prev.bestScores, ...cheatedCompleted }
       }));
     }
-  }, [user, activeLevels, gameState.currentWorld]);
+  }, [user, activeLevels, gameState.currentWorld, isMartinUser]);
 
   // Firebase Init & Auth state hooks
   useEffect(() => {
@@ -227,14 +235,19 @@ const App: React.FC = () => {
           if (currentUser) {
             setSyncStatus('syncing');
             try {
+              const isMartin = isMartinUser(currentUser);
               const cloudProgress = await loadUserProfile(currentUser.uid);
               if (cloudProgress) {
                 // Synthesize local and cloud progress
                 setGameState(prev => {
                   const localBalls = prev.unlockedBallIds || ['classic_white'];
                   const cloudBalls = cloudProgress.unlockedBallIds || [];
-                  const mergedBalls = Array.from(new Set([...localBalls, ...cloudBalls]));
+                  const mergedBalls = isMartin ? ALL_BALL_IDS : Array.from(new Set([...localBalls, ...cloudBalls]));
                   
+                  const localTrails = prev.unlockedTrailIds || ['trail_dust_white'];
+                  const cloudTrails = cloudProgress.unlockedTrailIds || [];
+                  const mergedTrails = isMartin ? ALL_TRAIL_IDS : Array.from(new Set([...localTrails, ...cloudTrails]));
+
                   return {
                     ...prev,
                     currentLevelIndex: Math.max(cloudProgress.currentLevelIndex ?? 0, prev.currentLevelIndex ?? 0),
@@ -242,9 +255,11 @@ const App: React.FC = () => {
                     points: Math.max(cloudProgress.points ?? 0, prev.points ?? 0),
                     bestScores: { ...(prev.bestScores || {}), ...(cloudProgress.bestScores || {}) },
                     resetUnlocked: cloudProgress.resetUnlocked || prev.resetUnlocked,
-                    coins: Math.max(cloudProgress.coins ?? 100, prev.coins ?? 100),
+                    coins: isMartin ? Math.max(cloudProgress.coins ?? 100, prev.coins ?? 100, 9000000000000000) : Math.max(cloudProgress.coins ?? 100, prev.coins ?? 100),
                     unlockedBallIds: mergedBalls,
-                    equippedBallId: cloudProgress.equippedBallId ?? prev.equippedBallId,
+                    equippedBallId: cloudProgress.equippedBallId ?? prev.equippedBallId ?? 'classic_white',
+                    unlockedTrailIds: mergedTrails,
+                    equippedTrailId: cloudProgress.equippedTrailId ?? prev.equippedTrailId ?? 'trail_dust_white',
                   };
                 });
               } else {
@@ -255,9 +270,11 @@ const App: React.FC = () => {
                   points: gameState.points,
                   bestScores: gameState.bestScores,
                   resetUnlocked: gameState.resetUnlocked,
-                  coins: gameState.coins ?? 100,
-                  unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
+                  coins: isMartin ? 9000000000000000 : (gameState.coins ?? 100),
+                  unlockedBallIds: isMartin ? ALL_BALL_IDS : (gameState.unlockedBallIds ?? ['classic_white']),
                   equippedBallId: gameState.equippedBallId ?? 'classic_white',
+                  unlockedTrailIds: isMartin ? ALL_TRAIL_IDS : (gameState.unlockedTrailIds ?? ['trail_dust_white']),
+                  equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
                 });
               }
               setSyncStatus('synced');
@@ -279,7 +296,7 @@ const App: React.FC = () => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [isMartinUser]);
 
   // Sync to database debounced on gameState changes
   useEffect(() => {
@@ -288,15 +305,18 @@ const App: React.FC = () => {
     const syncToDatabase = async () => {
       setSyncStatus('syncing');
       try {
+        const isMartin = isMartinUser(user);
         await saveUserProfile(user.uid, {
           currentLevelIndex: gameState.currentLevelIndex,
           totalScore: gameState.totalScore,
           points: gameState.points,
           bestScores: gameState.bestScores,
           resetUnlocked: gameState.resetUnlocked,
-          coins: gameState.coins ?? 100,
-          unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
+          coins: isMartin ? 9000000000000000 : (gameState.coins ?? 100),
+          unlockedBallIds: isMartin ? ALL_BALL_IDS : (gameState.unlockedBallIds ?? ['classic_white']),
           equippedBallId: gameState.equippedBallId ?? 'classic_white',
+          unlockedTrailIds: isMartin ? ALL_TRAIL_IDS : (gameState.unlockedTrailIds ?? ['trail_dust_white']),
+          equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
         });
         setSyncStatus('synced');
       } catch (err) {
@@ -318,6 +338,9 @@ const App: React.FC = () => {
     gameState.coins,
     gameState.unlockedBallIds,
     gameState.equippedBallId,
+    gameState.unlockedTrailIds,
+    gameState.equippedTrailId,
+    isMartinUser,
   ]);
 
   const handleLogin = async () => {
