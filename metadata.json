@@ -1,6 +1,6 @@
 {
   "name": "Remix: Hole in one",
-  "description": "A top-down mini-golf game featuring 100 collectible balls and 100 particle trails across Common, Rare, Legendary, and Mythical rarities, Daily Shop rotation, Mystery Ball Chests & Trail Boxes, physics-based gameplay, and an AI caddy.",
+  "description": "A top-down mini-golf game featuring 100+ collectible balls and particle trails, Daily Shop rotation, Mystery Chests, Martin Luquetta's exclusive Net & Scribble sets, direct account & email creator gifting, and real-time cloud progression.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

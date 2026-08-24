@@ -7,10 +7,11 @@ import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
+import { ConsoleView } from './ConsoleView';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -28,6 +29,7 @@ interface GameMenuProps {
   onBuyTrail?: (id: string, price: number) => void;
   onEquipTrail?: (id: string) => void;
   onAddCoins?: (amount: number) => void;
+  onUnlockItems?: (ballIds: string[], trailIds: string[]) => void;
   user: any;
   onLogin: () => Promise<void>;
   onLogout: () => Promise<void>;
@@ -38,6 +40,8 @@ interface GameMenuProps {
   currentWorld?: 'classic' | 'cyber';
   onSelectWorld?: (world: 'classic' | 'cyber') => void;
   isCyberUnlocked?: boolean;
+  onUnlockAllLevels?: () => void;
+  onSetAllScoresHIO?: () => void;
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -56,6 +60,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   onBuyTrail = () => {},
   onEquipTrail = () => {},
   onAddCoins = () => {},
+  onUnlockItems = () => {},
   user,
   onLogin,
   onLogout,
@@ -66,10 +71,20 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   currentWorld = 'classic',
   onSelectWorld = () => {},
   isCyberUnlocked = false,
+  onUnlockAllLevels,
+  onSetAllScoresHIO,
 }) => {
-  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard' | 'achievements'>('play');
+  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard' | 'achievements' | 'console'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
+
+  // Exclusive Creator Check for Martin Luquetta
+  const isMartin = Boolean(
+    (user?.email && user.email.toLowerCase().trim() === 'martin.luquetta@sgs.edu.co') ||
+    (user?.email && user.email.toLowerCase().includes('martin.luquetta')) ||
+    (user?.displayName && user.displayName.toLowerCase().trim() === 'martin') ||
+    (typeof window !== 'undefined' && localStorage.getItem('is_martin_creator') === 'true')
+  );
 
   useEffect(() => {
     if (currentWorld === 'cyber') {
@@ -278,6 +293,24 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 <Settings className="w-4 h-4 shrink-0" />
                 <span>Caddy & HUD</span>
               </button>
+
+              {/* Console Tab - EXCLUSIVELY FOR MARTIN */}
+              {isMartin && (
+                <button
+                  onClick={() => setActiveTab('console')}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap md:whitespace-normal shrink-0 border border-amber-400/50 mt-1 ${
+                    activeTab === 'console'
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-stone-950 shadow-md font-black ring-2 ring-amber-400/50'
+                      : 'bg-amber-400/15 text-amber-900 hover:bg-amber-400/25'
+                  }`}
+                >
+                  <Crown className="w-4 h-4 text-amber-600 fill-amber-500 shrink-0" />
+                  <span>Console</span>
+                  <span className="ml-auto bg-amber-950 text-amber-300 text-[9px] px-1.5 py-0.5 rounded-full font-black">
+                    ADMIN
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -641,6 +674,8 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               onBuyTrail={onBuyTrail}
               onEquipTrail={onEquipTrail}
               onAddCoins={onAddCoins}
+              onUnlockItems={onUnlockItems}
+              user={user}
             />
           )}
 
@@ -796,6 +831,27 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 </button>
               </div>
             </div>
+          )}
+
+          {/* TAB 8: CONSOLE (EXCLUSIVELY FOR MARTIN) */}
+          {activeTab === 'console' && isMartin && (
+            <ConsoleView
+              user={user}
+              coins={coins}
+              unlockedBallIds={unlockedBallIds}
+              equippedBallId={equippedBallId}
+              unlockedTrailIds={unlockedTrailIds}
+              equippedTrailId={equippedTrailId}
+              onBuyBall={onBuyBall}
+              onEquipBall={onEquipBall}
+              onBuyTrail={onBuyTrail}
+              onEquipTrail={onEquipTrail}
+              onAddCoins={onAddCoins}
+              onUnlockItems={onUnlockItems}
+              bestScores={bestScores}
+              onUnlockAllLevels={onUnlockAllLevels}
+              onSetAllScoresHIO={onSetAllScoresHIO}
+            />
           )}
         </div>
       </div>

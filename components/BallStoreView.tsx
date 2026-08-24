@@ -3,17 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   BallItem, 
   TrailItem, 
   BALLS_STORE_ITEMS, 
   TRAILS_STORE_ITEMS, 
+  EXCLUSIVE_BALLS,
+  EXCLUSIVE_TRAILS,
   CHESTS, 
   ChestType,
   RARITIES, 
   ItemRarity,
-  getDailyShopItems 
+  getDailyShopItems,
+  redeemCreatorGiftCode
 } from './BallStoreData';
 import { 
   Coins, 
@@ -31,8 +34,13 @@ import {
   Zap,
   Star,
   Check,
-  X
+  X,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
+import { 
+  checkMatchingGrants 
+} from '../services/firebase';
 import useAudio from '../hooks/useAudio';
 import { getPath } from '../utils/path';
 
@@ -47,6 +55,8 @@ interface BallStoreViewProps {
   onBuyTrail?: (id: string, price: number) => void;
   onEquipTrail?: (id: string) => void;
   onAddCoins?: (amount: number) => void;
+  onUnlockItems?: (ballIds: string[], trailIds: string[]) => void;
+  user?: any;
   onClose?: () => void;
 }
 
@@ -61,6 +71,8 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
   onBuyTrail = () => {},
   onEquipTrail = () => {},
   onAddCoins,
+  onUnlockItems = () => {},
+  user,
   onClose,
 }) => {
   const { playForeground } = useAudio();
@@ -81,6 +93,35 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
     chest: ChestType;
   } | null>(null);
 
+  // Player Direct Claim/Check State
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimLookupInput, setClaimLookupInput] = useState('');
+  const [claimFeedback, setClaimFeedback] = useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const [isLoadingGrants, setIsLoadingGrants] = useState(false);
+  const [autoClaimedNotification, setAutoClaimedNotification] = useState<string | null>(null);
+
+  // Automatic Background Check on Mount for recipient user
+  useEffect(() => {
+    const checkGrants = async () => {
+      const email = user?.email || localStorage.getItem('player_email') || '';
+      const name = user?.displayName || localStorage.getItem('player_username') || '';
+      if (!email && !name) return;
+
+      const result = await checkMatchingGrants(email, name);
+      if (result.matchedGrants.length > 0) {
+        const newBalls = result.ballIds.filter(b => !unlockedBallIds.includes(b));
+        const newTrails = result.trailIds.filter(t => !unlockedTrailIds.includes(t));
+        if (newBalls.length > 0 || newTrails.length > 0) {
+          onUnlockItems(result.ballIds, result.trailIds);
+          result.ballIds.forEach(bId => onBuyBall(bId, 0));
+          result.trailIds.forEach(tId => onBuyTrail(tId, 0));
+          setAutoClaimedNotification(`🎉 Martin Luquetta granted you exclusive access to: ${result.matchedGrants.map(g => g.setName).join(', ')}!`);
+        }
+      }
+    };
+    checkGrants();
+  }, [user, onUnlockItems, onBuyBall, onBuyTrail, unlockedBallIds, unlockedTrailIds]);
+
   // Update countdown timer every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -88,6 +129,39 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const handleCheckClaimGifts = async (identifier?: string) => {
+    const target = (identifier || claimLookupInput || user?.email || user?.displayName || '').trim();
+    if (!target) {
+      setClaimFeedback({ success: false, message: 'Please enter your account name or email address.' });
+      return;
+    }
+    setIsLoadingGrants(true);
+    const check = await checkMatchingGrants(target, target, target);
+    setIsLoadingGrants(false);
+
+    if (check.matchedGrants.length > 0) {
+      playForeground(getPath("/media/audio/sfx/global/win.mp3"));
+      onUnlockItems(check.ballIds, check.trailIds);
+      check.ballIds.forEach(bId => onBuyBall(bId, 0));
+      check.trailIds.forEach(tId => onBuyTrail(tId, 0));
+      if (check.ballIds.length > 0) onEquipBall(check.ballIds[0]);
+      if (check.trailIds.length > 0) onEquipTrail(check.trailIds[0]);
+
+      const setNames = Array.from(new Set(check.matchedGrants.map(g => g.setName))).join(', ');
+      setClaimFeedback({
+        success: true,
+        message: `🎉 Success! Martin Luquetta granted you: ${setNames}! The items are unlocked and equipped!`,
+        count: check.ballIds.length + check.trailIds.length
+      });
+    } else {
+      playForeground(getPath("/media/audio/sfx/global/lose.mp3"));
+      setClaimFeedback({
+        success: false,
+        message: `No active gifts found for "${target}". Please check the spelling or ask Martin (martin.luquetta@sgs.edu.co) to grant access to your account name or email!`,
+      });
+    }
+  };
 
   const handleBuyBallClick = (item: BallItem) => {
     if (coins >= item.price) {
@@ -205,6 +279,59 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
   const renderBallPreview = (item: BallItem, size = 'w-12 h-12') => {
     const isMythical = item.rarity === 'mythical';
     const isLegendary = item.rarity === 'legendary';
+
+    // Net exclusive ball preview
+    if (item.pattern === 'net' || item.id === 'exclusive_net') {
+      return (
+        <div 
+          className={`relative ${size} rounded-full flex items-center justify-center shadow-lg overflow-hidden border border-cyan-400/60`}
+          style={{
+            background: 'radial-gradient(circle at 35% 35%, #1e293b 0%, #0f172a 70%, #020617 100%)',
+            boxShadow: '0 0 14px rgba(56, 189, 248, 0.8), inset 0 -3px 6px rgba(0,0,0,0.6)',
+          }}
+        >
+          <div className="absolute bottom-0 inset-x-0 h-3.5 bg-[#c28b52] border-t border-cyan-400/30"></div>
+          <svg className="absolute inset-0 w-full h-full p-1 opacity-90" viewBox="0 0 40 40">
+            <polygon points="20,6 10,18 30,18" fill="none" stroke="#ffffff" strokeWidth="1.2" />
+            <polygon points="10,18 20,30 30,18" fill="none" stroke="#38bdf8" strokeWidth="1.2" />
+            <line x1="20" y1="6" x2="20" y2="30" stroke="#ffffff" strokeWidth="0.8" />
+            <line x1="6" y1="20" x2="34" y2="20" stroke="#38bdf8" strokeWidth="0.8" />
+            <circle cx="20" cy="6" r="1.5" fill="#38bdf8" />
+            <circle cx="10" cy="18" r="1.5" fill="#ffffff" />
+            <circle cx="30" cy="18" r="1.5" fill="#ffffff" />
+            <circle cx="20" cy="30" r="1.5" fill="#38bdf8" />
+          </svg>
+          <div className="absolute top-1 left-2 w-1.5 h-1.5 rounded-full bg-white/70"></div>
+        </div>
+      );
+    }
+
+    // Scribble exclusive ball preview
+    if (item.pattern === 'scribble' || item.id === 'exclusive_scribble') {
+      return (
+        <div 
+          className={`relative ${size} rounded-full flex items-center justify-center shadow-lg overflow-hidden border border-rose-400/60`}
+          style={{
+            background: 'radial-gradient(circle at 35% 35%, #ffffff 0%, #f1f5f9 60%, #cbd5e1 100%)',
+            boxShadow: '0 0 14px rgba(244, 63, 94, 0.7), inset 0 -3px 6px rgba(0,0,0,0.2)',
+          }}
+        >
+          <svg className="absolute inset-0 w-full h-full p-1" viewBox="0 0 40 40">
+            <path 
+              d="M 12,12 C 8,8 24,6 28,14 C 32,22 14,24 16,32 C 18,36 30,30 32,24" 
+              fill="none" 
+              stroke="#09090b" 
+              strokeWidth="2.2" 
+              strokeLinecap="round" 
+            />
+            <circle cx="14" cy="16" r="1.5" fill="#f43f5e" />
+            <circle cx="28" cy="28" r="1.8" fill="#f43f5e" />
+            <circle cx="24" cy="12" r="1.2" fill="#09090b" />
+          </svg>
+          <div className="absolute top-1.5 left-2 w-2 h-1 rounded-full bg-white/90"></div>
+        </div>
+      );
+    }
 
     if (item.specialType === 'gold') {
       return (
@@ -342,6 +469,28 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
         
         {/* Dynamic tail particle stream */}
         <div className="flex-1 flex items-center gap-1.5 pl-2 relative">
+          {item.particleType === 'mesh' && (
+            <div className="flex items-center gap-2">
+              <div className="w-3.5 h-3.5 border border-cyan-400 rotate-45 flex items-center justify-center shadow-[0_0_8px_#38bdf8] animate-spin" style={{ animationDuration: '6s' }}>
+                <div className="w-1 h-1 bg-white rounded-full"></div>
+              </div>
+              <div className="w-3 h-0.5 bg-cyan-300"></div>
+              <div className="w-2.5 h-2.5 border border-cyan-400 rotate-12 flex items-center justify-center">
+                <div className="w-1 h-1 bg-cyan-200"></div>
+              </div>
+              <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></div>
+            </div>
+          )}
+
+          {item.particleType === 'scribble' && (
+            <div className="flex items-center gap-1 text-rose-400">
+              <span className="font-mono text-sm font-black animate-pulse">〰️</span>
+              <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]"></div>
+              <span className="font-mono text-xs font-bold text-white">~</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-black border border-white"></div>
+            </div>
+          )}
+
           {item.particleType === 'flame' && (
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-full bg-orange-500 animate-ping opacity-80"></div>
@@ -450,11 +599,25 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
               <h2 className="text-lg font-black text-[#3d312a]">Balls & Putting Trails</h2>
             </div>
             <p className="text-xs text-[#7a7065] font-semibold mt-0.5">
-              Owned: <strong className="text-[#3d312a]">{ownedBallsCount}/100 Balls</strong> • <strong className="text-[#3d312a]">{ownedTrailsCount}/100 Trails</strong>
+              Owned: <strong className="text-[#3d312a]">{ownedBallsCount}/102 Balls</strong> • <strong className="text-[#3d312a]">{ownedTrailsCount}/102 Trails</strong>
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Check Gifts Button for all players */}
+            <button
+              type="button"
+              onClick={() => {
+                playForeground(getPath("/media/audio/sfx/global/buttonclick.mp3"));
+                setClaimFeedback(null);
+                setShowClaimModal(true);
+              }}
+              className="bg-[#3d312a] hover:bg-[#2a221d] text-[#faf6ee] text-xs font-black px-3.5 py-1.5 rounded-2xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer border border-[#3d312a]/20 active:scale-95"
+            >
+              <Gift className="w-3.5 h-3.5 text-amber-300" />
+              <span>Check Gifts</span>
+            </button>
+
             {/* Coins Balance Indicator */}
             <div className="bg-[#db5641] text-white px-3.5 py-1.5 rounded-2xl flex items-center gap-2 shadow-sm border border-[#db5641]/20">
               <Coins className="w-4 h-4 text-yellow-300 fill-yellow-300" />
@@ -465,6 +628,22 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Auto-Claimed Gift Notification Banner */}
+        {autoClaimedNotification && (
+          <div className="bg-gradient-to-r from-amber-500/20 via-yellow-400/20 to-amber-500/20 border-2 border-amber-400/60 p-3 rounded-2xl mb-4 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-black text-amber-950">
+              <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{autoClaimedNotification}</span>
+            </div>
+            <button
+              onClick={() => setAutoClaimedNotification(null)}
+              className="p-1 rounded-full hover:bg-amber-400/30 text-amber-900 text-xs font-bold"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* Sub-Navigation Tabs: Daily Shop, Mystery Chests, My Locker, Catalog */}
         <div className="flex bg-[#efe6d4]/60 p-1 rounded-2xl border border-[#3d312a]/10 mb-4 gap-1 overflow-x-auto scrollbar-none">
@@ -1063,6 +1242,67 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* ================================================================= */}
+      {/* PLAYER CHECK / CLAIM GIFTS MODAL */}
+      {/* ================================================================= */}
+      {showClaimModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#faf6ee] text-[#3d312a] border border-[#3d312a]/20 rounded-3xl p-6 max-w-md w-full shadow-2xl relative">
+            <button
+              onClick={() => setShowClaimModal(false)}
+              className="absolute top-4 right-4 p-1 rounded-full hover:bg-stone-200 text-[#3d312a]/70 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-amber-100 border border-amber-300 rounded-2xl text-amber-800 shadow-sm">
+                <Gift className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-[#3d312a]">Check Granted Gifts</h3>
+                <p className="text-xs text-[#7a7065] font-semibold">Enter your account name or email to claim gifts from Martin.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] font-black uppercase text-[#7a7065] mb-1 block">Your Account Name or Email</label>
+                <input
+                  type="text"
+                  value={claimLookupInput}
+                  onChange={(e) => setClaimLookupInput(e.target.value)}
+                  placeholder={user?.email || user?.displayName || 'e.g. golfer_pro or player@sgs.edu.co'}
+                  className="w-full bg-white border-2 border-[#3d312a]/15 focus:border-[#db5641] rounded-2xl px-4 py-2.5 text-sm font-semibold outline-none shadow-inner"
+                />
+              </div>
+
+              {claimFeedback && (
+                <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-start gap-2 ${
+                  claimFeedback.success 
+                    ? 'bg-[#6ca750]/15 text-[#2d521d] border border-[#6ca750]/30' 
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}>
+                  {claimFeedback.success ? <CheckCircle className="w-4 h-4 text-[#6ca750] shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+                  <span>{claimFeedback.message}</span>
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={isLoadingGrants}
+                  onClick={() => handleCheckClaimGifts()}
+                  className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-3 rounded-2xl font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isLoadingGrants ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                  <span>Claim Granted Exclusives</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

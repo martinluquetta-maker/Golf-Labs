@@ -40,9 +40,11 @@ service cloud.firestore {
           && data.coins >= 0
           && data.unlockedBallIds is list
           && data.unlockedBallIds.size() > 0
-          && data.unlockedBallIds.size() <= 50
+          && data.unlockedBallIds.size() <= 500
           && data.equippedBallId is string
           && data.equippedBallId.size() <= 64
+          && (!('unlockedTrailIds' in data) || (data.unlockedTrailIds is list && data.unlockedTrailIds.size() <= 500))
+          && (!('equippedTrailId' in data) || (data.equippedTrailId is string && data.equippedTrailId.size() <= 64))
           && data.bestScores is map
           && data.resetUnlocked is bool
           && data.updatedAt == request.time;
@@ -53,9 +55,7 @@ service cloud.firestore {
       
       allow create: if isOwner(userId)
                     && isValidId(userId)
-                    && isValidUserProgress(incoming(), userId)
-                    && incoming().keys().hasAll(['userId', 'currentLevelIndex', 'totalScore', 'points', 'bestScores', 'resetUnlocked', 'coins', 'unlockedBallIds', 'equippedBallId', 'updatedAt'])
-                    && incoming().keys().size() == 10;
+                    && isValidUserProgress(incoming(), userId);
                     
       allow update: if isOwner(userId)
                     && isValidId(userId)
@@ -63,6 +63,19 @@ service cloud.firestore {
                     && incoming().userId == existing().userId; // Immutable UID integrity
                     
       allow delete: if false; // Progress cannot be deleted through client libraries
+    }
+
+    // Martin's Creator Exclusive Grants System
+    match /exclusive_grants/{grantId} {
+      // Allow read so client apps can check for granted exclusive items by email / account name
+      allow read: if true;
+      
+      // Allow create, update, delete only by Martin's authorized creator account
+      allow create, update, delete: if isSignedIn() && (
+        request.auth.token.email == 'martin.luquetta@sgs.edu.co' ||
+        request.auth.token.email.matches('(?i)martin\\.luquetta.*') ||
+        (request.auth.token.name != null && request.auth.token.name.matches('(?i).*martin.*'))
+      );
     }
   }
 }

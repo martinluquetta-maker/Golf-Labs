@@ -23,7 +23,8 @@ import {
   authenticateWithGoogle, 
   logOutFromGoogle, 
   loadUserProfile, 
-  saveUserProfile 
+  saveUserProfile,
+  checkMatchingGrants
 } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -237,16 +238,26 @@ const App: React.FC = () => {
             try {
               const isMartin = isMartinUser(currentUser);
               const cloudProgress = await loadUserProfile(currentUser.uid);
+              
+              // Check if Martin Luquetta granted any exclusive sets to this player's email or displayName
+              const grantCheck = await checkMatchingGrants(
+                currentUser.email,
+                currentUser.displayName,
+                currentUser.email
+              );
+              const grantedBalls = grantCheck.ballIds;
+              const grantedTrails = grantCheck.trailIds;
+
               if (cloudProgress) {
-                // Synthesize local and cloud progress
+                // Synthesize local, cloud, and granted progress
                 setGameState(prev => {
                   const localBalls = prev.unlockedBallIds || ['classic_white'];
                   const cloudBalls = cloudProgress.unlockedBallIds || [];
-                  const mergedBalls = isMartin ? ALL_BALL_IDS : Array.from(new Set([...localBalls, ...cloudBalls]));
+                  const mergedBalls = isMartin ? ALL_BALL_IDS : Array.from(new Set([...localBalls, ...cloudBalls, ...grantedBalls]));
                   
                   const localTrails = prev.unlockedTrailIds || ['trail_dust_white'];
                   const cloudTrails = cloudProgress.unlockedTrailIds || [];
-                  const mergedTrails = isMartin ? ALL_TRAIL_IDS : Array.from(new Set([...localTrails, ...cloudTrails]));
+                  const mergedTrails = isMartin ? ALL_TRAIL_IDS : Array.from(new Set([...localTrails, ...cloudTrails, ...grantedTrails]));
 
                   return {
                     ...prev,
@@ -263,7 +274,10 @@ const App: React.FC = () => {
                   };
                 });
               } else {
-                // Populate new signups with current local state
+                // Populate new signups with current local state and any granted items
+                const initialBalls = isMartin ? ALL_BALL_IDS : Array.from(new Set([...(gameState.unlockedBallIds ?? ['classic_white']), ...grantedBalls]));
+                const initialTrails = isMartin ? ALL_TRAIL_IDS : Array.from(new Set([...(gameState.unlockedTrailIds ?? ['trail_dust_white']), ...grantedTrails]));
+                
                 await saveUserProfile(currentUser.uid, {
                   currentLevelIndex: gameState.currentLevelIndex,
                   totalScore: gameState.totalScore,
@@ -271,11 +285,16 @@ const App: React.FC = () => {
                   bestScores: gameState.bestScores,
                   resetUnlocked: gameState.resetUnlocked,
                   coins: isMartin ? 9000000000000000 : (gameState.coins ?? 100),
-                  unlockedBallIds: isMartin ? ALL_BALL_IDS : (gameState.unlockedBallIds ?? ['classic_white']),
+                  unlockedBallIds: initialBalls,
                   equippedBallId: gameState.equippedBallId ?? 'classic_white',
-                  unlockedTrailIds: isMartin ? ALL_TRAIL_IDS : (gameState.unlockedTrailIds ?? ['trail_dust_white']),
+                  unlockedTrailIds: initialTrails,
                   equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
                 });
+                setGameState(prev => ({
+                  ...prev,
+                  unlockedBallIds: initialBalls,
+                  unlockedTrailIds: initialTrails,
+                }));
               }
               setSyncStatus('synced');
             } catch (err) {
@@ -667,6 +686,38 @@ const App: React.FC = () => {
     }));
   }, []);
 
+  const handleUnlockItems = useCallback((ballIds: string[], trailIds: string[]) => {
+    setGameState(prev => {
+      const currentBalls = prev.unlockedBallIds ?? ['classic_white'];
+      const currentTrails = prev.unlockedTrailIds ?? ['trail_dust_white'];
+      const newBalls = Array.from(new Set([...currentBalls, ...ballIds]));
+      const newTrails = Array.from(new Set([...currentTrails, ...trailIds]));
+      return {
+        ...prev,
+        unlockedBallIds: newBalls,
+        unlockedTrailIds: newTrails,
+        equippedBallId: ballIds.length > 0 ? ballIds[0] : prev.equippedBallId,
+        equippedTrailId: trailIds.length > 0 ? trailIds[0] : prev.equippedTrailId,
+      };
+    });
+  }, []);
+
+  const handleUnlockAllLevels = useCallback(() => {
+    setGameState(prev => {
+      const scores: Record<number, number> = { ...prev.bestScores };
+      for (let i = 0; i < 60; i++) {
+        if (scores[i] === undefined) scores[i] = 1;
+      }
+      for (let i = 100; i < 120; i++) {
+        if (scores[i] === undefined) scores[i] = 1;
+      }
+      return {
+        ...prev,
+        bestScores: scores,
+      };
+    });
+  }, []);
+
   const renderHUD = () => {
     return (
       <div className="h-full w-full relative">
@@ -891,6 +942,7 @@ const App: React.FC = () => {
           onBuyTrail={handleBuyTrail}
           onEquipTrail={handleEquipTrail}
           onAddCoins={handleAddCoins}
+          onUnlockItems={handleUnlockItems}
           user={user}
           onLogin={handleLogin}
           onLogout={handleLogout}
@@ -898,6 +950,7 @@ const App: React.FC = () => {
           syncStatus={syncStatus}
           authError={authError}
           onClearAuthError={() => setAuthError(null)}
+          onUnlockAllLevels={handleUnlockAllLevels}
         />
       )}
 

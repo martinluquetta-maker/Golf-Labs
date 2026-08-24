@@ -172,3 +172,174 @@ export async function getLeaderboard(limitCount: number = 50) {
     return [];
   }
 }
+
+export interface ExclusiveGrantRecord {
+  id?: string;
+  targetIdentifier: string;
+  targetType: 'email' | 'account_name';
+  setName: string;
+  ballIds: string[];
+  trailIds: string[];
+  grantedBy: string;
+  grantedAt: any;
+  note?: string;
+}
+
+const LOCAL_STORAGE_GRANTS_KEY = 'retro_golf_exclusive_grants';
+
+export function getLocalGrants(): ExclusiveGrantRecord[] {
+  try {
+    const data = localStorage.getItem(LOCAL_STORAGE_GRANTS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalGrants(grants: ExclusiveGrantRecord[]) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_GRANTS_KEY, JSON.stringify(grants));
+  } catch (e) {
+    console.error("Failed to save local grants:", e);
+  }
+}
+
+export async function createExclusiveGrant(
+  targetIdentifier: string,
+  targetType: 'email' | 'account_name',
+  setName: string,
+  ballIds: string[],
+  trailIds: string[],
+  note?: string,
+  grantedBy: string = 'martin.luquetta@sgs.edu.co'
+): Promise<{ success: boolean; id: string; message: string }> {
+  const cleanTarget = targetIdentifier.trim().toLowerCase();
+  if (!cleanTarget) {
+    return { success: false, id: '', message: 'Target email or account name cannot be empty.' };
+  }
+
+  const newGrant: ExclusiveGrantRecord = {
+    targetIdentifier: cleanTarget,
+    targetType,
+    setName,
+    ballIds,
+    trailIds,
+    grantedBy,
+    grantedAt: new Date().toISOString(),
+    note: note || `Granted by creator Martin Luquetta`
+  };
+
+  // 1. Save to localStorage cache
+  const localList = getLocalGrants().filter(g => g.targetIdentifier !== cleanTarget || g.setName !== setName);
+  const generatedId = `grant_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  newGrant.id = generatedId;
+  localList.unshift(newGrant);
+  saveLocalGrants(localList);
+
+  // 2. Save to Firestore if available
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      const grantDocRef = doc(db, 'exclusive_grants', generatedId);
+      await setDoc(grantDocRef, {
+        ...newGrant,
+        grantedAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.warn("Could not write grant to Firestore cloud, saved to local synced storage:", err);
+  }
+
+  return { 
+    success: true, 
+    id: generatedId, 
+    message: `Successfully granted ${setName} to ${targetType === 'email' ? 'email' : 'account'} "${cleanTarget}"!` 
+  };
+}
+
+export async function fetchExclusiveGrants(): Promise<ExclusiveGrantRecord[]> {
+  const localList = getLocalGrants();
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      const grantsRef = collection(db, 'exclusive_grants');
+      const querySnapshot = await getDocs(grantsRef);
+      const cloudGrants: ExclusiveGrantRecord[] = [];
+      querySnapshot.forEach((docSnap) => {
+        cloudGrants.push({ id: docSnap.id, ...docSnap.data() } as ExclusiveGrantRecord);
+      });
+      if (cloudGrants.length > 0) {
+        // Merge with local list
+        const map = new Map<string, ExclusiveGrantRecord>();
+        [...localList, ...cloudGrants].forEach(item => {
+          map.set(`${item.targetIdentifier}_${item.setName}`, item);
+        });
+        const merged = Array.from(map.values());
+        saveLocalGrants(merged);
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch grants from Firestore, using local grants:", err);
+  }
+  return localList;
+}
+
+export async function deleteExclusiveGrant(grantId: string): Promise<boolean> {
+  // Remove from local cache
+  const localList = getLocalGrants().filter(g => g.id !== grantId);
+  saveLocalGrants(localList);
+
+  // Remove from Firestore
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      // Set to soft-deleted or remove doc
+      const docRef = doc(db, 'exclusive_grants', grantId);
+      await setDoc(docRef, { deleted: true, deletedAt: serverTimestamp() }, { merge: true });
+    }
+  } catch (err) {
+    console.warn("Error deleting cloud grant:", err);
+  }
+  return true;
+}
+
+export async function checkMatchingGrants(userEmail?: string | null, displayName?: string | null, accountName?: string | null): Promise<{
+  matchedGrants: ExclusiveGrantRecord[];
+  ballIds: string[];
+  trailIds: string[];
+}> {
+  const grants = await fetchExclusiveGrants();
+  const emailsToCheck = [
+    (userEmail || '').toLowerCase().trim(),
+    (accountName || '').toLowerCase().trim(),
+  ].filter(Boolean);
+
+  const namesToCheck = [
+    (displayName || '').toLowerCase().trim(),
+    (accountName || '').toLowerCase().trim(),
+  ].filter(Boolean);
+
+  const matched: ExclusiveGrantRecord[] = [];
+  const balls = new Set<string>();
+  const trails = new Set<string>();
+
+  for (const g of grants) {
+    const ident = (g.targetIdentifier || '').toLowerCase().trim();
+    const isEmailMatch = g.targetType === 'email' && emailsToCheck.includes(ident);
+    const isNameMatch = g.targetType === 'account_name' && namesToCheck.includes(ident);
+    const isAnyMatch = emailsToCheck.includes(ident) || namesToCheck.includes(ident);
+
+    if (isEmailMatch || isNameMatch || isAnyMatch) {
+      matched.push(g);
+      (g.ballIds || []).forEach(b => balls.add(b));
+      (g.trailIds || []).forEach(t => trails.add(t));
+    }
+  }
+
+  return {
+    matchedGrants: matched,
+    ballIds: Array.from(balls),
+    trailIds: Array.from(trails),
+  };
+}

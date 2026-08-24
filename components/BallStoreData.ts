@@ -74,8 +74,9 @@ export interface BallItem {
   secondaryColor?: string;
   textColor?: string;
   glowColor?: string;
-  pattern?: 'solid' | 'stripe' | 'dual_ring' | 'truvis' | 'dots' | 'camo' | 'checker' | 'swirl' | 'rings' | 'stars' | 'number';
+  pattern?: 'solid' | 'stripe' | 'dual_ring' | 'truvis' | 'dots' | 'camo' | 'checker' | 'swirl' | 'rings' | 'stars' | 'number' | 'net' | 'scribble';
   specialType?: 'gold' | '8ball' | 'donut' | 'fire' | 'slime' | 'cosmic' | 'rainbow' | 'chrome' | 'diamond' | 'circuit' | 'dragon' | 'phoenix' | 'void' | 'aurora' | 'tesseract' | 'standard';
+  isExclusive?: boolean;
 }
 
 export interface TrailItem {
@@ -86,11 +87,78 @@ export interface TrailItem {
   description: string;
   color: string;
   secondaryColor?: string;
-  particleType: 'dust' | 'spark' | 'flame' | 'bubble' | 'star' | 'laser' | 'lightning' | 'rainbow' | 'matrix' | 'sakura' | 'ice' | 'coins' | 'hearts' | 'smoke' | 'rings' | 'galaxy' | 'phoenix' | 'portal' | 'glitch' | 'aurora';
+  particleType: 'dust' | 'spark' | 'flame' | 'bubble' | 'star' | 'laser' | 'lightning' | 'rainbow' | 'matrix' | 'sakura' | 'ice' | 'coins' | 'hearts' | 'smoke' | 'rings' | 'galaxy' | 'phoenix' | 'portal' | 'glitch' | 'aurora' | 'mesh' | 'scribble';
   glowColor?: string;
   particleCount?: number;
   size?: number;
+  isExclusive?: boolean;
 }
+
+// ============================================================================
+// CREATOR EXCLUSIVE SPECIAL ITEMS (NET & SCRIBBLE)
+// ============================================================================
+
+export const EXCLUSIVE_BALLS: BallItem[] = [
+  {
+    id: 'exclusive_net',
+    name: 'Net',
+    rarity: 'mythical',
+    price: 0,
+    description: 'Exclusive Creator pattern with a 3D geometric triangulated geodesic wireframe mesh over a warm cork band.',
+    color: '#18181b',
+    secondaryColor: '#c28b52',
+    textColor: '#38bdf8',
+    glowColor: 'rgba(56, 189, 248, 0.95)',
+    pattern: 'net',
+    specialType: 'standard',
+    isExclusive: true,
+  },
+  {
+    id: 'exclusive_scribble',
+    name: 'Scribble',
+    rarity: 'mythical',
+    price: 0,
+    description: 'Exclusive Creator pattern with dynamic high-contrast hand-drawn doodle loops and continuous ink calligraphy.',
+    color: '#fafaf9',
+    secondaryColor: '#09090b',
+    textColor: '#f43f5e',
+    glowColor: 'rgba(244, 63, 94, 0.9)',
+    pattern: 'scribble',
+    specialType: 'standard',
+    isExclusive: true,
+  }
+];
+
+export const EXCLUSIVE_TRAILS: TrailItem[] = [
+  {
+    id: 'exclusive_trail_net',
+    name: 'Net Matrix Mesh',
+    rarity: 'mythical',
+    price: 0,
+    description: 'Emits an interconnected neon wireframe polygon mesh with shimmering vertex nodes as you putt.',
+    color: '#38bdf8',
+    secondaryColor: '#c28b52',
+    particleType: 'mesh',
+    glowColor: 'rgba(56, 189, 248, 0.9)',
+    particleCount: 25,
+    size: 4.5,
+    isExclusive: true,
+  },
+  {
+    id: 'exclusive_trail_scribble',
+    name: 'Scribble Doodle Ink',
+    rarity: 'mythical',
+    price: 0,
+    description: 'Leaves a whimsical ribbon of swirling ink loops, calligraphy scribbles, and doodle flourishes.',
+    color: '#09090b',
+    secondaryColor: '#f43f5e',
+    particleType: 'scribble',
+    glowColor: 'rgba(244, 63, 94, 0.85)',
+    particleCount: 25,
+    size: 4.5,
+    isExclusive: true,
+  }
+];
 
 // ============================================================================
 // 100 BALL ITEMS CATALOG
@@ -496,7 +564,7 @@ function generateAllBalls(): BallItem[] {
   return list.slice(0, 100);
 }
 
-export const BALLS_STORE_ITEMS: BallItem[] = generateAllBalls();
+export const BALLS_STORE_ITEMS: BallItem[] = [...EXCLUSIVE_BALLS, ...generateAllBalls()];
 
 // ============================================================================
 // 100 TRAIL ITEMS CATALOG
@@ -859,7 +927,7 @@ function generateAllTrails(): TrailItem[] {
   return list.slice(0, 100);
 }
 
-export const TRAILS_STORE_ITEMS: TrailItem[] = generateAllTrails();
+export const TRAILS_STORE_ITEMS: TrailItem[] = [...EXCLUSIVE_TRAILS, ...generateAllTrails()];
 
 // ============================================================================
 // DAILY SHOP GENERATOR (5 BALLS + 5 TRAILS ROTATING DAILY)
@@ -889,10 +957,11 @@ export function getDailyShopItems(dateString?: string): { balls: BallItem[]; tra
   const seed = getDaySeed(dateString);
   const rng = pseudoRandom(seed);
 
-  // Pick 5 unique balls: 2 common, 2 rare, 1 legendary or mythical
-  const commonBalls = BALLS_STORE_ITEMS.filter(b => b.rarity === 'common');
-  const rareBalls = BALLS_STORE_ITEMS.filter(b => b.rarity === 'rare');
-  const highTierBalls = BALLS_STORE_ITEMS.filter(b => b.rarity === 'legendary' || b.rarity === 'mythical');
+  // Pick 5 unique balls (exclude creator exclusive items from public coin shop)
+  const availableBalls = BALLS_STORE_ITEMS.filter(b => !b.isExclusive);
+  const commonBalls = availableBalls.filter(b => b.rarity === 'common');
+  const rareBalls = availableBalls.filter(b => b.rarity === 'rare');
+  const highTierBalls = availableBalls.filter(b => b.rarity === 'legendary' || b.rarity === 'mythical');
 
   const selectedBalls: BallItem[] = [];
   const pickFrom = (pool: BallItem[]) => {
@@ -913,10 +982,11 @@ export function getDailyShopItems(dateString?: string): { balls: BallItem[]; tra
     if (!selectedBalls.some(b => b.id === item.id)) selectedBalls.push(item);
   }
 
-  // Pick 5 unique trails: 2 common, 2 rare, 1 legendary or mythical
-  const commonTrails = TRAILS_STORE_ITEMS.filter(t => t.rarity === 'common');
-  const rareTrails = TRAILS_STORE_ITEMS.filter(t => t.rarity === 'rare');
-  const highTierTrails = TRAILS_STORE_ITEMS.filter(t => t.rarity === 'legendary' || t.rarity === 'mythical');
+  // Pick 5 unique trails (exclude creator exclusive items from public coin shop)
+  const availableTrails = TRAILS_STORE_ITEMS.filter(t => !t.isExclusive);
+  const commonTrails = availableTrails.filter(t => t.rarity === 'common');
+  const rareTrails = availableTrails.filter(t => t.rarity === 'rare');
+  const highTierTrails = availableTrails.filter(t => t.rarity === 'legendary' || t.rarity === 'mythical');
 
   const selectedTrails: TrailItem[] = [];
   while (selectedTrails.length < 2 && commonTrails.length > 0) {
@@ -1011,15 +1081,15 @@ export function rollRarity(isBoosted = false): ItemRarity {
 
 export function openBallChest(isBoosted = false): BallItem {
   const targetRarity = rollRarity(isBoosted);
-  const pool = BALLS_STORE_ITEMS.filter(b => b.rarity === targetRarity);
-  if (pool.length === 0) return BALLS_STORE_ITEMS[Math.floor(Math.random() * BALLS_STORE_ITEMS.length)];
+  const pool = BALLS_STORE_ITEMS.filter(b => b.rarity === targetRarity && !b.isExclusive);
+  if (pool.length === 0) return BALLS_STORE_ITEMS.filter(b => !b.isExclusive)[0] || BALLS_STORE_ITEMS[0];
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export function openTrailBox(isBoosted = false): TrailItem {
   const targetRarity = rollRarity(isBoosted);
-  const pool = TRAILS_STORE_ITEMS.filter(t => t.rarity === targetRarity);
-  if (pool.length === 0) return TRAILS_STORE_ITEMS[Math.floor(Math.random() * TRAILS_STORE_ITEMS.length)];
+  const pool = TRAILS_STORE_ITEMS.filter(t => t.rarity === targetRarity && !t.isExclusive);
+  if (pool.length === 0) return TRAILS_STORE_ITEMS.filter(t => !t.isExclusive)[0] || TRAILS_STORE_ITEMS[0];
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -1039,4 +1109,53 @@ export const calculateCoinsEarned = (strokes: number, par: number): number => {
 
 export const ALL_BALL_IDS: string[] = BALLS_STORE_ITEMS.map(b => b.id);
 export const ALL_TRAIL_IDS: string[] = TRAILS_STORE_ITEMS.map(t => t.id);
+
+// ============================================================================
+// CREATOR DISTRIBUTION & REDEMPTION SYSTEM
+// ============================================================================
+
+export interface CreatorRedeemResult {
+  success: boolean;
+  message: string;
+  ballsUnlocked: string[];
+  trailsUnlocked: string[];
+}
+
+export function redeemCreatorGiftCode(rawCode: string): CreatorRedeemResult {
+  const code = (rawCode || '').trim().toUpperCase().replace(/[\s-_]/g, '');
+
+  if (['MARTINNET', 'NETEXCLUSIVE', 'NETSKIN', 'NET2026', 'NETCREATOR'].includes(code)) {
+    return {
+      success: true,
+      message: 'Exclusive Net Ball & Net Matrix Trail Unlocked!',
+      ballsUnlocked: ['exclusive_net'],
+      trailsUnlocked: ['exclusive_trail_net'],
+    };
+  }
+
+  if (['MARTINSCRIBBLE', 'SCRIBBLEVIP', 'SCRIBBLESKIN', 'SCRIBBLE2026', 'SCRIBBLECREATOR', 'SCRIBBLE3'].includes(code)) {
+    return {
+      success: true,
+      message: 'Exclusive Scribble Ball & Scribble Ink Trail Unlocked!',
+      ballsUnlocked: ['exclusive_scribble'],
+      trailsUnlocked: ['exclusive_trail_scribble'],
+    };
+  }
+
+  if (['MARTIN', 'MARTINLUQUETTA', 'MARTINVIP', 'MARTINDUO', 'CREATORDUO', 'ALLACCESS', 'MARTINALL', 'CREATORSET'].includes(code)) {
+    return {
+      success: true,
+      message: 'Full Creator Vault Unlocked: Net & Scribble Sets Claimed!',
+      ballsUnlocked: ['exclusive_net', 'exclusive_scribble'],
+      trailsUnlocked: ['exclusive_trail_net', 'exclusive_trail_scribble'],
+    };
+  }
+
+  return {
+    success: false,
+    message: 'Invalid or unrecognized creator gift code. Check with Martin for a valid exclusive code!',
+    ballsUnlocked: [],
+    trailsUnlocked: [],
+  };
+}
 

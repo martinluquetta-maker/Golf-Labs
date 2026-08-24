@@ -62,12 +62,69 @@
         "equippedBallId",
         "updatedAt"
       ]
+    },
+    "ExclusiveGrant": {
+      "title": "ExclusiveGrant",
+      "description": "Exclusive skin grants issued directly by creator Martin to account names or email addresses.",
+      "type": "object",
+      "properties": {
+        "grantId": {
+          "type": "string",
+          "description": "Unique grant ID"
+        },
+        "targetIdentifier": {
+          "type": "string",
+          "description": "Recipient email address or account name"
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["email", "account_name"],
+          "description": "Whether the target is an email or account username"
+        },
+        "setName": {
+          "type": "string",
+          "description": "Name of the granted package (e.g. Net Set, Scribble Set, Complete Creator Bundle)"
+        },
+        "ballIds": {
+          "type": "array",
+          "description": "List of exclusive ball IDs granted"
+        },
+        "trailIds": {
+          "type": "array",
+          "description": "List of exclusive trail IDs granted"
+        },
+        "grantedBy": {
+          "type": "string",
+          "description": "Creator email who granted the items"
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the grant was issued"
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional gift message from Martin"
+        }
+      },
+      "required": [
+        "targetIdentifier",
+        "targetType",
+        "setName",
+        "ballIds",
+        "trailIds",
+        "grantedBy"
+      ]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "UserProgress",
       "description": "User profile containing persistent synced game progress."
+    },
+    "exclusive_grants/{grantId}": {
+      "schema": "ExclusiveGrant",
+      "description": "Direct grants issued by Martin to user emails or account names."
     }
   }
 }

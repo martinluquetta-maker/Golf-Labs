@@ -1704,6 +1704,41 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 0.8;
         ctx.stroke();
+      } else if (p.type === 'mesh') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        const r = p.size * 1.6;
+        const rot = p.life * 0.12;
+        const a1 = rot;
+        const a2 = rot + (Math.PI * 2) / 3;
+        const a3 = rot + (Math.PI * 4) / 3;
+        ctx.moveTo(p.x + Math.cos(a1) * r, p.y + Math.sin(a1) * r);
+        ctx.lineTo(p.x + Math.cos(a2) * r, p.y + Math.sin(a2) * r);
+        ctx.lineTo(p.x + Math.cos(a3) * r, p.y + Math.sin(a3) * r);
+        ctx.closePath();
+        ctx.stroke();
+        
+        ctx.fillStyle = p.secondaryColor || '#ffffff';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type === 'scribble') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        const r = p.size * 1.5;
+        const t = p.life * 0.3;
+        ctx.arc(p.x, p.y, r * 0.8, t, t + Math.PI * 1.4);
+        ctx.stroke();
+        if (p.secondaryColor) {
+          ctx.fillStyle = p.secondaryColor;
+          ctx.beginPath();
+          ctx.arc(p.x + Math.cos(t) * r * 0.8, p.y + Math.sin(t) * r * 0.8, 1.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
         ctx.fillStyle = p.color;
         ctx.beginPath();
@@ -1899,6 +1934,87 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
           ctx.fillStyle = '#3d312a';
           ctx.font = `600 ${Math.round(b.radius * 0.25)}px sans-serif`;
           ctx.fillText('PRO', b.pos.x, b.pos.y - b.radius * 0.35);
+          ctx.restore();
+        }
+
+        // Net geometric 3D wireframe mesh pattern
+        if (activeBall.pattern === 'net' || activeBall.id === 'exclusive_net') {
+          ctx.save();
+          // Bottom tan cork band
+          ctx.beginPath();
+          ctx.arc(b.pos.x, b.pos.y, b.radius - 0.5, 0.25 * Math.PI, 0.75 * Math.PI);
+          ctx.lineTo(b.pos.x, b.pos.y + b.radius * 0.4);
+          ctx.closePath();
+          ctx.fillStyle = activeBall.secondaryColor || '#c28b52';
+          ctx.fill();
+
+          // Geometric triangulated wireframe mesh
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.lineWidth = 1.0;
+          ctx.beginPath();
+          // Horizontal / Diagonal lattice lines
+          const pts = [
+            { x: -0.6, y: -0.5 }, { x: 0, y: -0.7 }, { x: 0.6, y: -0.5 },
+            { x: -0.7, y: 0 },    { x: -0.2, y: -0.1 }, { x: 0.3, y: 0 }, { x: 0.7, y: 0.1 },
+            { x: -0.5, y: 0.45 }, { x: 0.1, y: 0.4 },  { x: 0.5, y: 0.5 }
+          ];
+          const px = (pt: {x: number, y: number}) => b.pos.x + pt.x * b.radius;
+          const py = (pt: {x: number, y: number}) => b.pos.y + pt.y * b.radius;
+
+          // Connect triangles
+          const tris = [
+            [0, 1, 4], [1, 2, 5], [1, 4, 5], [0, 3, 4],
+            [3, 7, 4], [4, 7, 8], [4, 8, 5], [5, 8, 9], [5, 9, 6]
+          ];
+          tris.forEach(([i1, i2, i3]) => {
+            ctx.moveTo(px(pts[i1]), py(pts[i1]));
+            ctx.lineTo(px(pts[i2]), py(pts[i2]));
+            ctx.lineTo(px(pts[i3]), py(pts[i3]));
+            ctx.closePath();
+          });
+          ctx.stroke();
+
+          // Glowing vertex nodes
+          ctx.fillStyle = '#38bdf8';
+          pts.forEach(pt => {
+            ctx.beginPath();
+            ctx.arc(px(pt), py(pt), 1.1, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.restore();
+        }
+
+        // Scribble abstract flowing ink loops & doodle curves
+        if (activeBall.pattern === 'scribble' || activeBall.id === 'exclusive_scribble') {
+          ctx.save();
+          ctx.strokeStyle = activeBall.secondaryColor || '#09090b';
+          ctx.lineWidth = 1.4;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          
+          // Continuous doodle curlicue loops
+          const r = b.radius;
+          const ox = b.pos.x, oy = b.pos.y;
+          // Loop 1
+          ctx.moveTo(ox - r * 0.6, oy - r * 0.3);
+          ctx.bezierCurveTo(ox - r * 0.7, oy - r * 0.7, ox - r * 0.1, oy - r * 0.8, ox - r * 0.1, oy - r * 0.4);
+          ctx.bezierCurveTo(ox - r * 0.1, oy - r * 0.1, ox - r * 0.6, oy - r * 0.1, ox - r * 0.4, oy + r * 0.3);
+          // Loop 2
+          ctx.bezierCurveTo(ox - r * 0.2, oy + r * 0.6, ox + r * 0.4, oy + r * 0.7, ox + r * 0.3, oy + r * 0.2);
+          ctx.bezierCurveTo(ox + r * 0.2, oy - r * 0.3, ox + r * 0.7, oy - r * 0.2, ox + r * 0.5, oy - r * 0.6);
+          // Loop 3
+          ctx.bezierCurveTo(ox + r * 0.3, oy - r * 0.8, ox, oy - r * 0.5, ox + r * 0.1, oy - r * 0.1);
+          ctx.bezierCurveTo(ox + r * 0.2, oy + r * 0.3, ox - r * 0.3, oy + r * 0.4, ox - r * 0.5, oy + r * 0.55);
+          ctx.stroke();
+
+          // Ink accent splatter dots
+          ctx.fillStyle = '#f43f5e';
+          ctx.beginPath();
+          ctx.arc(ox + r * 0.35, oy - r * 0.35, 1.2, 0, Math.PI * 2);
+          ctx.arc(ox - r * 0.3, oy - r * 0.45, 1.0, 0, Math.PI * 2);
+          ctx.arc(ox + r * 0.1, oy + r * 0.45, 1.2, 0, Math.PI * 2);
+          ctx.fill();
           ctx.restore();
         }
 
