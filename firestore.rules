@@ -77,5 +77,18 @@ service cloud.firestore {
         (request.auth.token.name != null && request.auth.token.name.matches('(?i).*martin.*'))
       );
     }
+
+    // Martin's Creator Player Ban Management System
+    match /player_bans/{banId} {
+      // Allow read so client apps can verify ban status upon connecting
+      allow read: if true;
+      
+      // Allow create, update, delete only by Martin's authorized creator account
+      allow create, update, delete: if isSignedIn() && (
+        request.auth.token.email == 'martin.luquetta@sgs.edu.co' ||
+        request.auth.token.email.matches('(?i)martin\\.luquetta.*') ||
+        (request.auth.token.name != null && request.auth.token.name.matches('(?i).*martin.*'))
+      );
+    }
   }
 }

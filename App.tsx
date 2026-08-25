@@ -27,9 +27,12 @@ import {
   logOutFromGoogle, 
   loadUserProfile, 
   saveUserProfile,
-  checkMatchingGrants
+  checkMatchingGrants,
+  checkUserBanStatus,
+  PlayerBanRecord
 } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { ShieldAlert } from 'lucide-react';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -147,6 +150,14 @@ const App: React.FC = () => {
   const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
   const [isPortrait, setIsPortrait] = useState(false);
 
+  // Moderation / Ban status
+  const [banStatus, setBanStatus] = useState<{
+    isBanned: boolean;
+    banRecord?: PlayerBanRecord;
+    timeLeftFormatted?: string;
+  }>({ isBanned: false });
+  const [isCheckingBan, setIsCheckingBan] = useState(false);
+
   useEffect(() => {
     const checkOrientation = () => {
       setIsPortrait(window.innerHeight > window.innerWidth);
@@ -170,6 +181,30 @@ const App: React.FC = () => {
     const name = (u.displayName || '').toLowerCase().trim();
     return email === 'martin.luquetta@sgs.edu.co' || name === 'martin' || email.startsWith('martin.luquetta');
   }, []);
+
+  // Check ban status periodically and on user change
+  const verifyBan = useCallback(async () => {
+    if (isMartinUser(user)) {
+      setBanStatus({ isBanned: false });
+      return;
+    }
+    try {
+      const status = await checkUserBanStatus(
+        user?.email,
+        user?.displayName,
+        user?.uid
+      );
+      setBanStatus(status);
+    } catch (e) {
+      console.warn("Ban check failed:", e);
+    }
+  }, [user, isMartinUser]);
+
+  useEffect(() => {
+    verifyBan();
+    const timer = setInterval(verifyBan, 4000);
+    return () => clearInterval(timer);
+  }, [verifyBan]);
 
   const isCyberUnlocked = useMemo(() => {
     if (isMartinUser(user)) {
@@ -945,6 +980,90 @@ const App: React.FC = () => {
         <p className="text-[#e2d8ce] max-w-sm text-lg leading-relaxed font-medium">
           Golf Lab is a physics sandbox designed for landscape displays. Please rotate your device horizontally to play.
         </p>
+      </div>
+    );
+  }
+
+  // Active Ban Lockout Screen
+  if (banStatus.isBanned && !isMartinUser(user)) {
+    return (
+      <div className="fixed inset-0 bg-[#1c1815] text-[#faf6ee] flex flex-col items-center justify-center p-6 z-50 font-sans overflow-y-auto">
+        <div className="max-w-md w-full bg-[#2a221d] border-2 border-red-500/50 rounded-3xl p-7 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-2xl mx-auto flex items-center justify-center border border-red-500/40 shadow-inner">
+            <ShieldAlert className="w-8 h-8 text-red-500" />
+          </div>
+
+          <div>
+            <span className="text-[10px] font-black uppercase bg-red-600/30 text-red-300 border border-red-500/40 px-3 py-0.5 rounded-full inline-block mb-1.5">
+              Account Suspended
+            </span>
+            <h2 className="text-2xl font-black tracking-tight text-white">Access Restricted</h2>
+            <p className="text-xs text-stone-300 font-semibold mt-1">
+              Your account or player profile has been suspended by the game administrator.
+            </p>
+          </div>
+
+          <div className="bg-[#1c1815] p-4 rounded-2xl border border-red-900/40 text-left space-y-2 text-xs">
+            <div className="flex justify-between items-center pb-2 border-b border-stone-800">
+              <span className="text-stone-400 font-bold">Target Account:</span>
+              <span className="font-mono font-black text-amber-300 truncate max-w-[200px]">
+                {user?.email || user?.displayName || banStatus.banRecord?.targetIdentifier}
+              </span>
+            </div>
+            <div className="flex justify-between items-start pb-2 border-b border-stone-800">
+              <span className="text-stone-400 font-bold">Reason:</span>
+              <span className="font-semibold text-stone-200 text-right max-w-[220px]">
+                {banStatus.banRecord?.reason || 'Policy Violation'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-2 border-b border-stone-800">
+              <span className="text-stone-400 font-bold">Duration:</span>
+              <span className="font-bold text-stone-300">
+                {banStatus.banRecord?.durationLabel || 'Custom'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-stone-400 font-bold">Time Remaining:</span>
+              <span className="font-mono font-black text-red-400">
+                {banStatus.timeLeftFormatted || 'Permanent'}
+              </span>
+            </div>
+            {banStatus.banRecord?.note && (
+              <div className="pt-2 text-[11px] text-stone-400 italic border-t border-stone-800">
+                Admin Note: {banStatus.banRecord.note}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              type="button"
+              onClick={async () => {
+                setIsCheckingBan(true);
+                await verifyBan();
+                setIsCheckingBan(false);
+              }}
+              className="w-full bg-[#db5641] hover:bg-[#c44733] text-white py-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all active:scale-98 cursor-pointer"
+            >
+              {isCheckingBan ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              <span>Check Ban Status & Re-enter</span>
+            </button>
+
+            {user && (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full bg-stone-800 hover:bg-stone-700 text-stone-300 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer"
+              >
+                Sign Out / Switch Account
+              </button>
+            )}
+          </div>
+
+          <p className="text-[10px] text-stone-500">
+            Suspensions are issued directly by Martin Luquetta. If you believe this is an error, contact the administrator.
+          </p>
+        </div>
       </div>
     );
   }

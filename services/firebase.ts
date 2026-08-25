@@ -399,3 +399,252 @@ export async function checkMatchingGrants(userEmail?: string | null, displayName
     trailIds: Array.from(trails),
   };
 }
+
+// ----------------------------------------------------
+// PLAYER BAN & MODERATION SYSTEM
+// ----------------------------------------------------
+
+export interface PlayerBanRecord {
+  id?: string;
+  targetIdentifier: string; // lowercased email, username, or uid
+  targetType: 'email' | 'account_name' | 'user_id';
+  reason: string;
+  durationLabel: string; // e.g. "10 Minutes", "1 Hour", "24 Hours", "3 Days", "7 Days", "30 Days", "Permanent", "Custom"
+  durationMinutes?: number; // total duration in minutes if temporary
+  bannedAt: string; // ISO date string
+  expiresAt: string | null; // ISO date string or null if permanent
+  isPermanent: boolean;
+  isActive: boolean;
+  bannedBy: string;
+  note?: string;
+}
+
+const LOCAL_STORAGE_BANS_KEY = 'retro_golf_player_bans';
+
+export function getLocalBans(): PlayerBanRecord[] {
+  try {
+    const data = localStorage.getItem(LOCAL_STORAGE_BANS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalBans(bans: PlayerBanRecord[]) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_BANS_KEY, JSON.stringify(bans));
+  } catch (e) {
+    console.error("Failed to save local bans:", e);
+  }
+}
+
+export async function createPlayerBan(
+  targetIdentifier: string,
+  targetType: 'email' | 'account_name' | 'user_id',
+  reason: string,
+  durationMinutes: number | 'permanent',
+  durationLabel: string,
+  note?: string,
+  bannedBy: string = 'martin.luquetta@sgs.edu.co'
+): Promise<{ success: boolean; id: string; message: string; ban: PlayerBanRecord }> {
+  const cleanTarget = targetIdentifier.trim().toLowerCase();
+  if (!cleanTarget) {
+    throw new Error('Target player email, username, or ID is required.');
+  }
+
+  const isPermanent = durationMinutes === 'permanent';
+  const now = new Date();
+  const bannedAt = now.toISOString();
+  
+  let expiresAt: string | null = null;
+  if (!isPermanent && typeof durationMinutes === 'number' && durationMinutes > 0) {
+    const expDate = new Date(now.getTime() + durationMinutes * 60 * 1000);
+    expiresAt = expDate.toISOString();
+  }
+
+  const generatedId = `ban_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const newBan: PlayerBanRecord = {
+    id: generatedId,
+    targetIdentifier: cleanTarget,
+    targetType,
+    reason: reason.trim() || 'Community Policy Violation / Moderation Action',
+    durationLabel,
+    durationMinutes: isPermanent ? undefined : durationMinutes,
+    bannedAt,
+    expiresAt,
+    isPermanent,
+    isActive: true,
+    bannedBy,
+    note: note?.trim() || 'Suspension issued via Martin Luquetta Master Console'
+  };
+
+  // 1. Save to localStorage cache (replace existing ban for same target if active)
+  const localList = getLocalBans().filter(b => b.targetIdentifier !== cleanTarget || !b.isActive);
+  localList.unshift(newBan);
+  saveLocalBans(localList);
+
+  // 2. Save to Firestore if available
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      const banDocRef = doc(db, 'player_bans', generatedId);
+      await setDoc(banDocRef, {
+        ...newBan,
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.warn("Could not write ban to Firestore cloud, saved to local synced storage:", err);
+  }
+
+  return {
+    success: true,
+    id: generatedId,
+    message: `Successfully banned ${targetType === 'email' ? 'email' : 'player'} "${cleanTarget}" for ${durationLabel}.`,
+    ban: newBan
+  };
+}
+
+export async function fetchPlayerBans(): Promise<PlayerBanRecord[]> {
+  const localList = getLocalBans();
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      const bansRef = collection(db, 'player_bans');
+      const querySnapshot = await getDocs(bansRef);
+      const cloudBans: PlayerBanRecord[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data && !data.deleted) {
+          cloudBans.push({ id: docSnap.id, ...data } as PlayerBanRecord);
+        }
+      });
+      if (cloudBans.length > 0) {
+        // Merge cloud with local
+        const map = new Map<string, PlayerBanRecord>();
+        [...localList, ...cloudBans].forEach(item => {
+          map.set(item.id || `${item.targetIdentifier}_${item.bannedAt}`, item);
+        });
+        const merged = Array.from(map.values()).sort((a, b) => 
+          new Date(b.bannedAt).getTime() - new Date(a.bannedAt).getTime()
+        );
+        saveLocalBans(merged);
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch bans from Firestore, using local cache:", err);
+  }
+  return localList;
+}
+
+export async function revokePlayerBan(banId: string): Promise<boolean> {
+  // Update local list
+  const localList = getLocalBans().map(b => {
+    if (b.id === banId) {
+      return { ...b, isActive: false };
+    }
+    return b;
+  });
+  saveLocalBans(localList);
+
+  // Update in Firestore
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      const docRef = doc(db, 'player_bans', banId);
+      await setDoc(docRef, { isActive: false, revokedAt: serverTimestamp() }, { merge: true });
+    }
+  } catch (err) {
+    console.warn("Error revoking cloud ban:", err);
+  }
+  return true;
+}
+
+export async function deletePlayerBan(banId: string): Promise<boolean> {
+  // Remove from local cache
+  const localList = getLocalBans().filter(b => b.id !== banId);
+  saveLocalBans(localList);
+
+  // Soft delete / remove in Firestore
+  try {
+    const { db, configured } = await getFirebaseServices();
+    if (configured && db) {
+      const docRef = doc(db, 'player_bans', banId);
+      await setDoc(docRef, { deleted: true, deletedAt: serverTimestamp() }, { merge: true });
+    }
+  } catch (err) {
+    console.warn("Error deleting cloud ban:", err);
+  }
+  return true;
+}
+
+export async function checkUserBanStatus(
+  userEmail?: string | null,
+  displayName?: string | null,
+  uid?: string | null
+): Promise<{
+  isBanned: boolean;
+  banRecord?: PlayerBanRecord;
+  timeLeftFormatted?: string;
+}> {
+  // Admin / Creator is always immune to bans
+  const email = (userEmail || '').toLowerCase().trim();
+  if (email === 'martin.luquetta@sgs.edu.co' || email.startsWith('martin.luquetta')) {
+    return { isBanned: false };
+  }
+
+  const bans = await fetchPlayerBans();
+  const emailsToCheck = [email].filter(Boolean);
+  const namesToCheck = [(displayName || '').toLowerCase().trim()].filter(Boolean);
+  const uidsToCheck = [(uid || '').toLowerCase().trim()].filter(Boolean);
+
+  const now = new Date();
+
+  for (const ban of bans) {
+    if (!ban.isActive) continue;
+
+    const ident = (ban.targetIdentifier || '').toLowerCase().trim();
+    const isEmailMatch = emailsToCheck.includes(ident);
+    const isNameMatch = namesToCheck.includes(ident);
+    const isUidMatch = uidsToCheck.includes(ident);
+
+    if (isEmailMatch || isNameMatch || isUidMatch) {
+      // Check if ban is permanent or still active
+      if (ban.isPermanent || !ban.expiresAt) {
+        return {
+          isBanned: true,
+          banRecord: ban,
+          timeLeftFormatted: 'Permanent Suspension'
+        };
+      }
+
+      const expDate = new Date(ban.expiresAt);
+      if (expDate.getTime() > now.getTime()) {
+        const diffMs = expDate.getTime() - now.getTime();
+        const diffSecs = Math.floor(diffMs / 1000);
+        const days = Math.floor(diffSecs / 86400);
+        const hours = Math.floor((diffSecs % 86400) / 3600);
+        const mins = Math.floor((diffSecs % 3600) / 60);
+        const secs = diffSecs % 60;
+
+        let timeStr = '';
+        if (days > 0) timeStr += `${days}d `;
+        if (hours > 0 || days > 0) timeStr += `${hours}h `;
+        timeStr += `${mins}m ${secs}s`;
+
+        return {
+          isBanned: true,
+          banRecord: ban,
+          timeLeftFormatted: timeStr.trim()
+        };
+      } else {
+        // Ban has expired! Automatically mark inactive
+        revokePlayerBan(ban.id || '');
+      }
+    }
+  }
+
+  return { isBanned: false };
+}
+

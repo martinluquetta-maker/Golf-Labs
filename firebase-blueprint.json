@@ -115,6 +115,72 @@
         "trailIds",
         "grantedBy"
       ]
+    },
+    "PlayerBan": {
+      "title": "PlayerBan",
+      "description": "Moderation records for banned players with customizable expiration duration or permanent duration, issued by creator.",
+      "type": "object",
+      "properties": {
+        "banId": {
+          "type": "string",
+          "description": "Unique ban identifier"
+        },
+        "targetIdentifier": {
+          "type": "string",
+          "description": "Email, display name, or user ID of banned player"
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["email", "account_name", "user_id"],
+          "description": "Type of target banned"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the ban"
+        },
+        "durationLabel": {
+          "type": "string",
+          "description": "Readable duration string (e.g. 1 Hour, 3 Days, Permanent, Custom: 45m)"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "description": "Duration in minutes if temporary"
+        },
+        "bannedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when ban was issued"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when ban expires, or null if permanent"
+        },
+        "isPermanent": {
+          "type": "boolean",
+          "description": "Whether the ban has no expiration"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the ban is currently in effect"
+        },
+        "bannedBy": {
+          "type": "string",
+          "description": "Creator or admin who issued the ban"
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional administrative note"
+        }
+      },
+      "required": [
+        "targetIdentifier",
+        "targetType",
+        "reason",
+        "bannedAt",
+        "isActive",
+        "bannedBy"
+      ]
     }
   },
   "firestore": {
@@ -125,6 +191,10 @@
     "exclusive_grants/{grantId}": {
       "schema": "ExclusiveGrant",
       "description": "Direct grants issued by Martin to user emails or account names."
+    },
+    "player_bans/{banId}": {
+      "schema": "PlayerBan",
+      "description": "Player moderation and ban records issued by creator Martin."
     }
   }
 }

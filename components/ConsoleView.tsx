@@ -24,7 +24,18 @@ import {
   Search,
   Check,
   Flame,
-  Key
+  Key,
+  Ban,
+  Clock,
+  ShieldAlert,
+  UserX,
+  Calendar,
+  History,
+  UserCheck,
+  Timer,
+  CheckSquare,
+  XCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   createExclusiveGrant, 
@@ -32,7 +43,12 @@ import {
   fetchExclusiveGrants, 
   checkMatchingGrants,
   ExclusiveGrantRecord,
-  saveUserProfile
+  saveUserProfile,
+  createPlayerBan,
+  fetchPlayerBans,
+  revokePlayerBan,
+  deletePlayerBan,
+  PlayerBanRecord
 } from '../services/firebase';
 import { 
   BALLS_STORE_ITEMS, 
@@ -79,7 +95,7 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
   onSetAllScoresHIO,
 }) => {
   const { playForeground } = useAudio();
-  const [activeSubTab, setActiveSubTab] = useState<'gifting' | 'master_tools' | 'lookup' | 'telemetry'>('gifting');
+  const [activeSubTab, setActiveSubTab] = useState<'gifting' | 'bans' | 'master_tools' | 'lookup' | 'telemetry'>('bans');
 
   // Gifting State
   const [grantTargetInput, setGrantTargetInput] = useState('');
@@ -90,6 +106,23 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
   const [grantsList, setGrantsList] = useState<ExclusiveGrantRecord[]>([]);
   const [isLoadingGrants, setIsLoadingGrants] = useState(false);
   const [selfActionFeedback, setSelfActionFeedback] = useState<string | null>(null);
+
+  // Player Bans State
+  const [banTargetInput, setBanTargetInput] = useState('');
+  const [banTargetType, setBanTargetType] = useState<'email' | 'account_name' | 'user_id'>('email');
+  const [banDurationMode, setBanDurationMode] = useState<
+    '10m' | '30m' | '1h' | '12h' | '24h' | '3d' | '7d' | '30d' | 'permanent' | 'custom'
+  >('24h');
+  const [customDurationVal, setCustomDurationVal] = useState('60');
+  const [customDurationUnit, setCustomDurationUnit] = useState<'minutes' | 'hours' | 'days' | 'weeks' | 'months'>('minutes');
+  const [banReasonMode, setBanReasonMode] = useState<string>('Leaderboard Cheating / Score Exploits');
+  const [banReasonCustom, setBanReasonCustom] = useState('');
+  const [banAdminNote, setBanAdminNote] = useState('');
+  const [banFeedback, setBanFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const [bansList, setBansList] = useState<PlayerBanRecord[]>([]);
+  const [isLoadingBans, setIsLoadingBans] = useState(false);
+  const [banSearchFilter, setBanSearchFilter] = useState('');
+  const [currentTimeTick, setCurrentTimeTick] = useState(Date.now());
 
   // Player Lookup State
   const [lookupQuery, setLookupQuery] = useState('');
@@ -104,9 +137,16 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
   // Custom Coin Input
   const [customCoinInput, setCustomCoinInput] = useState('1000000');
 
-  // Load existing grants on mount
+  // Load existing grants & bans on mount
   useEffect(() => {
     loadGrants();
+    loadBans();
+
+    // Interval to refresh time left countdowns
+    const timer = setInterval(() => {
+      setCurrentTimeTick(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const loadGrants = async () => {
@@ -121,9 +161,141 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
     }
   };
 
+  const loadBans = async () => {
+    setIsLoadingBans(true);
+    try {
+      const list = await fetchPlayerBans();
+      setBansList(list);
+    } catch (e) {
+      console.error("Error loading player bans in console:", e);
+    } finally {
+      setIsLoadingBans(false);
+    }
+  };
+
   const showFeedback = (msg: string) => {
     setSelfActionFeedback(msg);
     setTimeout(() => setSelfActionFeedback(null), 3500);
+  };
+
+  // Helper to calculate duration in minutes
+  const computeBanDuration = (): { minutes: number | 'permanent'; label: string } => {
+    if (banDurationMode === 'permanent') {
+      return { minutes: 'permanent', label: 'Permanent (Indefinite)' };
+    }
+    if (banDurationMode === '10m') return { minutes: 10, label: '10 Minutes' };
+    if (banDurationMode === '30m') return { minutes: 30, label: '30 Minutes' };
+    if (banDurationMode === '1h') return { minutes: 60, label: '1 Hour' };
+    if (banDurationMode === '12h') return { minutes: 720, label: '12 Hours' };
+    if (banDurationMode === '24h') return { minutes: 1440, label: '24 Hours (1 Day)' };
+    if (banDurationMode === '3d') return { minutes: 4320, label: '3 Days' };
+    if (banDurationMode === '7d') return { minutes: 10080, label: '7 Days (1 Week)' };
+    if (banDurationMode === '30d') return { minutes: 43200, label: '30 Days (1 Month)' };
+
+    // Custom
+    const num = Math.max(1, parseInt(customDurationVal, 10) || 1);
+    let mins = num;
+    let label = `${num} ${customDurationUnit}`;
+    if (customDurationUnit === 'hours') mins = num * 60;
+    else if (customDurationUnit === 'days') mins = num * 1440;
+    else if (customDurationUnit === 'weeks') mins = num * 10080;
+    else if (customDurationUnit === 'months') mins = num * 43200;
+
+    return { minutes: mins, label: `Custom: ${label}` };
+  };
+
+  // 1. Issue Ban to Player
+  const handleIssueBan = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanTarget = banTargetInput.trim();
+    if (!cleanTarget) {
+      setBanFeedback({ success: false, message: 'Please enter a target email address, account name, or player ID.' });
+      return;
+    }
+
+    // Protection for creator
+    if (cleanTarget.toLowerCase() === 'martin.luquetta@sgs.edu.co' || cleanTarget.toLowerCase().startsWith('martin.luquetta')) {
+      setBanFeedback({ success: false, message: 'Cannot ban the Creator / Admin account (Martin Luquetta).' });
+      return;
+    }
+
+    const { minutes, label } = computeBanDuration();
+    const finalReason = banReasonMode === 'custom' 
+      ? (banReasonCustom.trim() || 'Moderation Policy Action')
+      : banReasonMode;
+
+    setIsLoadingBans(true);
+    try {
+      const res = await createPlayerBan(
+        cleanTarget,
+        banTargetType,
+        finalReason,
+        minutes,
+        label,
+        banAdminNote,
+        user?.email || 'martin.luquetta@sgs.edu.co'
+      );
+
+      setIsLoadingBans(false);
+      setBanFeedback({ success: true, message: res.message });
+      playForeground(getPath("/media/audio/sfx/global/win.mp3"));
+
+      setBanTargetInput('');
+      setBanAdminNote('');
+      setBanReasonCustom('');
+      const updated = await fetchPlayerBans();
+      setBansList(updated);
+    } catch (err: any) {
+      setIsLoadingBans(false);
+      playForeground(getPath("/media/audio/sfx/global/lose.mp3"));
+      setBanFeedback({ success: false, message: err?.message || 'Failed to issue ban.' });
+    }
+  };
+
+  // 2. Revoke Ban (Pardon)
+  const handleRevokeBan = async (banId?: string) => {
+    if (!banId) return;
+    playForeground(getPath("/media/audio/sfx/global/buttonclick.mp3"));
+    await revokePlayerBan(banId);
+    const updated = await fetchPlayerBans();
+    setBansList(updated);
+    showFeedback("🟢 Ban pardoned / revoked. Player access restored.");
+  };
+
+  // 3. Delete Ban Record
+  const handleDeleteBanRecord = async (banId?: string) => {
+    if (!banId) return;
+    playForeground(getPath("/media/audio/sfx/global/buttonclick.mp3"));
+    await deletePlayerBan(banId);
+    const updated = await fetchPlayerBans();
+    setBansList(updated);
+    showFeedback("🗑️ Ban record removed from history.");
+  };
+
+  // Helper to format remaining time
+  const formatTimeRemaining = (ban: PlayerBanRecord) => {
+    if (!ban.isActive) return { text: 'Pardoned / Inactive', status: 'inactive' as const };
+    if (ban.isPermanent || !ban.expiresAt) return { text: 'Permanent Ban', status: 'permanent' as const };
+
+    const expTime = new Date(ban.expiresAt).getTime();
+    const now = currentTimeTick;
+    const diff = expTime - now;
+
+    if (diff <= 0) {
+      return { text: 'Expired (Ready to lift)', status: 'expired' as const };
+    }
+
+    const diffSecs = Math.floor(diff / 1000);
+    const d = Math.floor(diffSecs / 86400);
+    const h = Math.floor((diffSecs % 86400) / 3600);
+    const m = Math.floor((diffSecs % 3600) / 60);
+    const s = diffSecs % 60;
+
+    let res = '';
+    if (d > 0) res += `${d}d `;
+    if (h > 0 || d > 0) res += `${h}h `;
+    res += `${m}m ${s}s left`;
+    return { text: res, status: 'active' as const };
   };
 
   // 1. Grant Exclusive Set to a Player
@@ -312,6 +484,19 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
       <div className="flex bg-[#efe6d4]/80 p-1 rounded-2xl border border-[#3d312a]/10 mb-4 gap-1 overflow-x-auto scrollbar-none shrink-0">
         <button
           type="button"
+          onClick={() => setActiveSubTab('bans')}
+          className={`flex-1 min-w-[120px] py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeSubTab === 'bans'
+              ? 'bg-[#db5641] text-white shadow-sm'
+              : 'text-[#7a7065] hover:bg-[#faf6ee]/50'
+          }`}
+        >
+          <Ban className="w-3.5 h-3.5" />
+          <span>Ban Players</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveSubTab('gifting')}
           className={`flex-1 min-w-[120px] py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             activeSubTab === 'gifting'
@@ -365,6 +550,393 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto pr-1">
+        {/* SUBTAB: PLAYER BANS & SUSPENSIONS */}
+        {activeSubTab === 'bans' && (
+          <div className="space-y-4 animate-in fade-in duration-150">
+            {/* Ban Creation Form */}
+            <form onSubmit={handleIssueBan} className="bg-white border-2 border-red-200 p-5 rounded-2xl shadow-sm space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-black text-red-900 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-red-600" /> Suspend & Ban Player
+                  </h3>
+                  <p className="text-xs text-[#7a7065] font-semibold mt-0.5">
+                    Restrict access for any custom duration or permanently. Banned players will be blocked upon entering or logging in.
+                  </p>
+                </div>
+
+                {/* Target Type Selector */}
+                <div className="flex bg-stone-100 p-0.5 rounded-lg border border-stone-200 text-xs font-black">
+                  <button
+                    type="button"
+                    onClick={() => setBanTargetType('email')}
+                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                      banTargetType === 'email' ? 'bg-[#3d312a] text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Mail className="w-3 h-3" />
+                    <span>Email Address</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBanTargetType('account_name')}
+                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                      banTargetType === 'account_name' ? 'bg-[#3d312a] text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <User className="w-3 h-3" />
+                    <span>Golfer Username</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBanTargetType('user_id')}
+                    className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                      banTargetType === 'user_id' ? 'bg-[#3d312a] text-white shadow-xs' : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Key className="w-3 h-3" />
+                    <span>Player UID</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Input */}
+              <div>
+                <label className="text-[11px] font-black uppercase text-[#7a7065] mb-1 block">
+                  {banTargetType === 'email' ? 'Target Email Address' : banTargetType === 'account_name' ? 'Target Golfer Name' : 'Target Firebase UID'}
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
+                    <UserX className="w-4 h-4 text-red-500" />
+                  </div>
+                  <input
+                    type={banTargetType === 'email' ? 'email' : 'text'}
+                    value={banTargetInput}
+                    onChange={(e) => setBanTargetInput(e.target.value)}
+                    placeholder={
+                      banTargetType === 'email' 
+                        ? 'e.g. exploiter@example.com or baduser@gmail.com' 
+                        : banTargetType === 'account_name'
+                        ? 'e.g. ToxicPlayer123 or Cheater99'
+                        : 'e.g. Firebase Auth UID'
+                    }
+                    className="w-full bg-stone-50 border-2 border-stone-200 focus:border-red-500 rounded-xl pl-10 pr-3 py-2 text-xs font-semibold outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Duration Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-black uppercase text-[#7a7065] block">
+                    Ban Duration (Customizable)
+                  </label>
+                  <span className="text-[11px] font-black text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-red-600" />
+                    {computeBanDuration().label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 text-xs font-bold">
+                  {[
+                    { id: '10m', label: '10 Minutes' },
+                    { id: '30m', label: '30 Minutes' },
+                    { id: '1h', label: '1 Hour' },
+                    { id: '12h', label: '12 Hours' },
+                    { id: '24h', label: '24 Hours (1 Day)' },
+                    { id: '3d', label: '3 Days' },
+                    { id: '7d', label: '7 Days (1 Wk)' },
+                    { id: '30d', label: '30 Days (1 Mo)' },
+                    { id: 'permanent', label: '♾️ Permanent' },
+                    { id: 'custom', label: '⚙️ Custom Time' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setBanDurationMode(preset.id as any)}
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                        banDurationMode === preset.id
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs ring-2 ring-red-400/40 font-black'
+                          : 'bg-stone-50 border-stone-200 text-[#3d312a] hover:bg-stone-100'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Time Selector */}
+                {banDurationMode === 'custom' && (
+                  <div className="mt-2.5 p-3 bg-red-50/70 border border-red-200 rounded-xl space-y-2 animate-in fade-in">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-red-950">Set Custom Amount:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="99999"
+                        value={customDurationVal}
+                        onChange={(e) => setCustomDurationVal(e.target.value)}
+                        className="w-24 bg-white border border-red-300 rounded-lg px-2.5 py-1 text-xs font-black text-red-950 outline-none focus:border-red-600 text-center"
+                      />
+                      <select
+                        value={customDurationUnit}
+                        onChange={(e) => setCustomDurationUnit(e.target.value as any)}
+                        className="bg-white border border-red-300 rounded-lg px-2.5 py-1 text-xs font-black text-red-950 outline-none focus:border-red-600 cursor-pointer"
+                      >
+                        <option value="minutes">Minutes</option>
+                        <option value="hours">Hours</option>
+                        <option value="days">Days</option>
+                        <option value="weeks">Weeks</option>
+                        <option value="months">Months</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Ban Reason */}
+              <div>
+                <label className="text-[11px] font-black uppercase text-[#7a7065] mb-1.5 block">
+                  Suspension Reason
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs font-bold mb-2">
+                  {[
+                    'Leaderboard Cheating / Score Exploits',
+                    'Inappropriate Display Name / Toxic Conduct',
+                    'Unauthorized Game Modifications / Botting',
+                    'Temporary Penalty Cool-down',
+                  ].map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => {
+                        setBanReasonMode(r);
+                      }}
+                      className={`p-2 rounded-xl border text-left transition-all cursor-pointer text-[11px] ${
+                        banReasonMode === r
+                          ? 'bg-stone-800 text-white border-stone-900 shadow-xs font-black'
+                          : 'bg-stone-50 border-stone-200 text-[#3d312a] hover:bg-stone-100'
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setBanReasonMode('custom')}
+                    className={`p-2 rounded-xl border text-left transition-all cursor-pointer text-[11px] sm:col-span-2 ${
+                      banReasonMode === 'custom'
+                        ? 'bg-stone-800 text-white border-stone-900 shadow-xs font-black'
+                        : 'bg-stone-50 border-stone-200 text-[#3d312a] hover:bg-stone-100'
+                    }`}
+                  >
+                    📝 Custom Reason (Specify below)
+                  </button>
+                </div>
+
+                {banReasonMode === 'custom' && (
+                  <input
+                    type="text"
+                    required
+                    value={banReasonCustom}
+                    onChange={(e) => setBanReasonCustom(e.target.value)}
+                    placeholder="Enter specific custom reason for suspension..."
+                    className="w-full bg-stone-50 border-2 border-stone-200 focus:border-red-500 rounded-xl px-3 py-2 text-xs font-semibold outline-none mt-1 animate-in fade-in"
+                  />
+                )}
+              </div>
+
+              {/* Optional Admin Note */}
+              <div>
+                <label className="text-[11px] font-black uppercase text-[#7a7065] mb-1 block">
+                  Admin Note / Context (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={banAdminNote}
+                  onChange={(e) => setBanAdminNote(e.target.value)}
+                  placeholder="e.g. Flagged on Hole 12 with impossible stroke count"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:border-[#3d312a]"
+                />
+              </div>
+
+              {/* Form Feedback */}
+              {banFeedback && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in ${
+                    banFeedback.success
+                      ? 'bg-[#6ca750]/20 text-[#224415] border border-[#6ca750]/40'
+                      : 'bg-red-100 text-red-900 border border-red-300'
+                  }`}
+                >
+                  {banFeedback.success ? <CheckCircle className="w-4 h-4 text-[#6ca750] shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+                  <span>{banFeedback.message}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoadingBans}
+                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white py-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all active:scale-98 cursor-pointer disabled:opacity-50"
+              >
+                {isLoadingBans ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Processing Suspension...</span>
+                  </>
+                ) : (
+                  <>
+                    <Ban className="w-4 h-4" />
+                    <span>Apply Player Suspension & Ban</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Bans List & Moderation History */}
+            <div className="bg-white border border-[#3d312a]/15 p-5 rounded-2xl shadow-sm space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-[#3d312a] flex items-center gap-1.5">
+                    <History className="w-4 h-4 text-stone-600" /> Active Suspensions & Ban Records ({bansList.length})
+                  </h3>
+                  <p className="text-xs text-[#7a7065] font-medium">
+                    Manage, inspect, or pardon active bans in real-time.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={banSearchFilter}
+                      onChange={(e) => setBanSearchFilter(e.target.value)}
+                      placeholder="Filter bans..."
+                      className="bg-stone-50 border border-stone-200 rounded-lg pl-8 pr-2 py-1 text-xs font-semibold outline-none w-36 focus:w-48 transition-all"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={loadBans}
+                    disabled={isLoadingBans}
+                    className="p-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg transition-colors cursor-pointer"
+                    title="Refresh ban records"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingBans ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Bans Cards */}
+              {bansList.length === 0 ? (
+                <div className="p-6 bg-stone-50 border border-stone-200 rounded-xl text-center text-xs font-bold text-stone-500">
+                  <UserCheck className="w-6 h-6 text-stone-400 mx-auto mb-1.5" />
+                  No players are currently banned. The fair play policy is clean!
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {bansList
+                    .filter((b) => {
+                      if (!banSearchFilter) return true;
+                      const q = banSearchFilter.toLowerCase();
+                      return (
+                        b.targetIdentifier.toLowerCase().includes(q) ||
+                        b.reason.toLowerCase().includes(q) ||
+                        b.targetType.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((ban) => {
+                      const timeInfo = formatTimeRemaining(ban);
+                      const isStillActive = ban.isActive && (ban.isPermanent || (ban.expiresAt && new Date(ban.expiresAt).getTime() > currentTimeTick));
+
+                      return (
+                        <div
+                          key={ban.id || ban.targetIdentifier}
+                          className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                            isStillActive
+                              ? 'bg-red-50/60 border-red-200 shadow-2xs'
+                              : 'bg-stone-50 border-stone-200 opacity-75'
+                          }`}
+                        >
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono font-black text-xs text-[#3d312a] truncate">
+                                {ban.targetIdentifier}
+                              </span>
+                              <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-stone-200 text-stone-700">
+                                {ban.targetType}
+                              </span>
+                              
+                              {/* Status Badge */}
+                              {isStillActive ? (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                                  <span>Active Ban: {timeInfo.text}</span>
+                                </span>
+                              ) : !ban.isActive ? (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  Pardoned / Lifted
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                  Expired
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs text-[#7a7065] font-semibold flex items-center gap-2 flex-wrap">
+                              <span><strong>Reason:</strong> {ban.reason}</span>
+                              <span>•</span>
+                              <span><strong>Duration:</strong> {ban.durationLabel}</span>
+                            </div>
+
+                            {ban.note && (
+                              <p className="text-[10px] text-stone-500 italic">
+                                Note: {ban.note}
+                              </p>
+                            )}
+
+                            <div className="text-[9px] text-stone-400 font-mono">
+                              Banned on: {new Date(ban.bannedAt).toLocaleString()} by {ban.bannedBy}
+                              {ban.expiresAt && ` | Expiration: ${new Date(ban.expiresAt).toLocaleString()}`}
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            {ban.isActive && (
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeBan(ban.id)}
+                                className="bg-[#6ca750] hover:bg-[#5b9042] text-white px-3 py-1.5 rounded-lg text-xs font-black transition-all active:scale-95 flex items-center gap-1 cursor-pointer shadow-xs"
+                                title="Instantly pardon player and restore access"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                <span>Pardon (Unban)</span>
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteBanRecord(ban.id)}
+                              className="text-stone-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Delete record from list"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* SUBTAB 1: PLAYER GIFTING & DISTRIBUTION */}
         {activeSubTab === 'gifting' && (
           <div className="space-y-4 animate-in fade-in duration-150">
