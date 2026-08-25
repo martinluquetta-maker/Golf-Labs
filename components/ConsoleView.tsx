@@ -142,15 +142,15 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
 
     if (grantSelectedSet === 'net') {
       ballIds = ['exclusive_net'];
-      trailIds = ['trail_matrix_mesh'];
+      trailIds = ['exclusive_trail_net', 'trail_matrix_mesh'];
       setName = 'Exclusive Net Set';
     } else if (grantSelectedSet === 'scribble') {
       ballIds = ['exclusive_scribble'];
-      trailIds = ['trail_scribble_ink'];
+      trailIds = ['exclusive_trail_scribble', 'trail_scribble_ink'];
       setName = 'Exclusive Scribble Set';
     } else {
       ballIds = ['exclusive_net', 'exclusive_scribble'];
-      trailIds = ['trail_matrix_mesh', 'trail_scribble_ink'];
+      trailIds = ['exclusive_trail_net', 'exclusive_trail_scribble', 'trail_matrix_mesh', 'trail_scribble_ink'];
       setName = 'Complete Creator Bundle (Net + Scribble)';
     }
 
@@ -192,12 +192,12 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
   const handleUnlockSelfExclusives = () => {
     playForeground(getPath("/media/audio/sfx/global/win.mp3"));
     const exclusiveBallIds = ['exclusive_net', 'exclusive_scribble'];
-    const exclusiveTrailIds = ['trail_matrix_mesh', 'trail_scribble_ink'];
+    const exclusiveTrailIds = ['exclusive_trail_net', 'exclusive_trail_scribble', 'trail_matrix_mesh', 'trail_scribble_ink'];
     onUnlockItems(exclusiveBallIds, exclusiveTrailIds);
     exclusiveBallIds.forEach(bId => onBuyBall(bId, 0));
     exclusiveTrailIds.forEach(tId => onBuyTrail(tId, 0));
     onEquipBall('exclusive_net');
-    onEquipTrail('trail_matrix_mesh');
+    onEquipTrail('exclusive_trail_net');
     showFeedback("✨ Net & Scribble sets unlocked and equipped to your account!");
   };
 
