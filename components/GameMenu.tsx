@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
@@ -32,6 +32,9 @@ interface GameMenuProps {
   onUnlockItems?: (ballIds: string[], trailIds: string[]) => void;
   user: any;
   onLogin: () => Promise<void>;
+  onLoginEmail?: (email: string, pass: string) => Promise<void>;
+  onRegisterEmail?: (email: string, pass: string, name?: string) => Promise<void>;
+  onResetPassword?: (email: string) => Promise<void>;
   onLogout: () => Promise<void>;
   firebaseConfigured: boolean;
   syncStatus: 'synced' | 'syncing' | 'offline' | 'pending';
@@ -63,6 +66,9 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   onUnlockItems = () => {},
   user,
   onLogin,
+  onLoginEmail,
+  onRegisterEmail,
+  onResetPassword,
   onLogout,
   firebaseConfigured,
   syncStatus,
@@ -77,6 +83,17 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard' | 'achievements' | 'console'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
+
+  // Email & Google Auth Modal State
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'reset'>('signin');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authDisplayName, setAuthDisplayName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authFormError, setAuthFormError] = useState<string | null>(null);
+  const [resetSuccessMsg, setResetSuccessMsg] = useState<string | null>(null);
 
   // Exclusive Creator Check for Martin Luquetta
   const isMartin = Boolean(
@@ -99,6 +116,78 @@ export const GameMenu: React.FC<GameMenuProps> = ({
       navigator.clipboard.writeText(window.location.hostname);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthFormError(null);
+    setResetSuccessMsg(null);
+
+    const cleanEmail = authEmail.trim();
+    if (!cleanEmail) {
+      setAuthFormError("Please enter your email address.");
+      return;
+    }
+
+    if (authMode === 'reset') {
+      if (onResetPassword) {
+        setAuthLoading(true);
+        try {
+          await onResetPassword(cleanEmail);
+          setResetSuccessMsg(`Password reset instructions sent to ${cleanEmail}! Please check your inbox.`);
+        } catch (err: any) {
+          setAuthFormError(err?.message || "Failed to send reset email.");
+        } finally {
+          setAuthLoading(false);
+        }
+      }
+      return;
+    }
+
+    if (!authPassword) {
+      setAuthFormError("Please enter your password.");
+      return;
+    }
+
+    if (authMode === 'signup' && authPassword.length < 6) {
+      setAuthFormError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setAuthLoading(true);
+    try {
+      if (authMode === 'signup') {
+        if (onRegisterEmail) {
+          await onRegisterEmail(cleanEmail, authPassword, authDisplayName.trim());
+        }
+      } else {
+        if (onLoginEmail) {
+          await onLoginEmail(cleanEmail, authPassword);
+        }
+      }
+      setShowAuthModal(false);
+      setAuthPassword('');
+      setAuthEmail('');
+      setAuthDisplayName('');
+    } catch (err: any) {
+      setAuthFormError(err?.message || "Authentication failed. Please verify your credentials.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleGoogleClick = async () => {
+    setAuthFormError(null);
+    setResetSuccessMsg(null);
+    setAuthLoading(true);
+    try {
+      await onLogin();
+      setShowAuthModal(false);
+    } catch (err: any) {
+      setAuthFormError(err?.message || "Google Sign-In failed.");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -330,8 +419,8 @@ export const GameMenu: React.FC<GameMenuProps> = ({
             </div>
           )}
 
-          {/* Google Sync Account Module */}
-          <div className="flex flex-col gap-2 p-4 bg-[#faf6ee]/60 border border-[#3d312a]/10 rounded-2xl text-xs mt-auto">
+          {/* Player Account & Cloud Sync Module */}
+          <div className="flex flex-col gap-2.5 p-4 bg-[#faf6ee]/60 border border-[#3d312a]/10 rounded-2xl text-xs mt-auto">
             {!firebaseConfigured ? (
               <div className="space-y-1.5 text-center py-0.5">
                 <div className="flex items-center justify-center gap-1 font-bold text-[#db5641]">
@@ -339,73 +428,96 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   <span>Cloud Save Offline</span>
                 </div>
                 <p className="text-[10px] text-[#7a7065] font-semibold leading-normal">
-                  To enable Google Cloud Saves, complete the companion <b className="text-[#db5641]">"Set up Firebase"</b> step in your AI Studio dashboard panel.
+                  To enable Cloud Saves, complete the companion <b className="text-[#db5641]">"Set up Firebase"</b> step in your AI Studio panel.
                 </p>
               </div>
             ) : !user ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5 font-extrabold text-[#3d312a]">
-                  <Cloud className="w-4 h-4 shrink-0 text-[#db5641]" />
-                  <span>Sync Google Account</span>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-extrabold text-[#3d312a]">
+                    <Cloud className="w-4 h-4 shrink-0 text-[#db5641]" />
+                    <span>Player Account</span>
+                  </div>
+                  <span className="text-[9px] font-bold text-[#6ca750] bg-[#6ca750]/10 px-1.5 py-0.5 rounded-full">
+                    Cloud Save
+                  </span>
                 </div>
-                <p className="text-[10px] text-[#7a7065] font-semibold leading-normal">
-                  Backup your 60-hole progress and gold coins in real-time.
+                <p className="text-[10px] text-[#7a7065] font-medium leading-normal">
+                  Sign in with your <b>Email</b> or <b>Google</b> account to backup your 60-hole progress and gold coins.
                 </p>
-                {typeof window !== 'undefined' && window.self !== window.top ? (
-                  <div className="space-y-1.5 border border-[#db5641]/20 bg-[#db5641]/5 p-2 rounded-xl mt-1">
+
+                {typeof window !== 'undefined' && window.self !== window.top && (
+                  <div className="space-y-1.5 border border-[#db5641]/20 bg-[#db5641]/5 p-2 rounded-xl">
                     <p className="text-[9px] text-[#db5641] font-bold leading-normal">
-                      ⚠️ Playing in the preview panel? Browser policies block Google sign-in inside iframes.
+                      ⚠️ Playing in the preview panel? For Google popup sign-in, open in a new tab:
                     </p>
                     <button
                       type="button"
                       onClick={() => window.open(window.location.href, '_blank')}
-                      className="w-full bg-[#6ca750] hover:bg-[#5b9042] text-white py-1.5 px-2.5 rounded-lg font-bold flex items-center justify-center gap-1 transition-all active:scale-95 text-[10px]"
+                      className="w-full bg-[#6ca750] hover:bg-[#5b9042] text-white py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition-all active:scale-95 text-[10px]"
                     >
                       <Sparkles className="w-3 h-3" />
-                      <span>Open in New Tab & Sign In</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onLogin}
-                      className="w-full text-center text-[9px] text-[#7a7065] hover:text-[#3d312a] font-semibold underline block pt-0.5"
-                    >
-                      Try signing in here anyway
+                      <span>Open in New Tab</span>
                     </button>
                   </div>
-                ) : (
+                )}
+
+                <div className="grid grid-cols-1 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setShowAuthModal(true);
+                    }}
+                    className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 text-[11px] shadow-sm cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Sign In with Email</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={onLogin}
-                    className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-2 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 text-[11px]"
+                    className="w-full bg-white hover:bg-[#faf6ee] border border-[#3d312a]/20 text-[#3d312a] py-1.5 px-3 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 text-[11px] cursor-pointer"
                   >
-                    <LogIn className="w-3.5 h-3.5" />
+                    <LogIn className="w-3.5 h-3.5 text-[#db5641]" />
                     <span>Sign In with Google</span>
                   </button>
-                )}
 
-                {/* Highly descriptive Troubleshooting block if Firebase Auth popup closes instantly / fails */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setShowAuthModal(true);
+                    }}
+                    className="w-full text-center text-[10px] text-[#7a7065] hover:text-[#3d312a] font-bold py-0.5 transition-colors"
+                  >
+                    Don't have an account? <span className="underline text-[#db5641]">Create one</span>
+                  </button>
+                </div>
+
+                {/* Highly descriptive Troubleshooting block if Auth fails */}
                 {authError && (
                   <div className="mt-2 p-2.5 bg-red-50/90 border border-red-200 rounded-xl text-left text-[10px] text-red-800 space-y-1.5 transition-all animate-fade-in shadow-sm">
                     <div className="flex items-start gap-1.5 font-bold text-red-900 leading-tight">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-600 mt-0.5" />
                       <div>
-                        <span>Auth Error ({authError.code || 'Failed'})</span>
+                        <span>Auth Notice ({authError.code || 'Notice'})</span>
                         <p className="text-[9px] text-red-700 font-medium leading-normal mt-0.5">
-                          {authError.message || 'Popups block, unauthorized custom domain, or network state.'}
+                          {authError.message}
                         </p>
                       </div>
                     </div>
                     
                     <div className="pt-1.5 border-t border-red-200/50 space-y-1.5 text-[9px] text-red-800">
-                      <p className="font-bold text-red-950">How to authorize this domain in Firebase:</p>
+                      <p className="font-bold text-red-950">Troubleshooting Tips:</p>
                       <p className="leading-relaxed text-red-900">
-                        Firebase blocks authentication requests until the hosting domain is authorized in your project.
+                        If using Email/Password, make sure Email provider is enabled in Firebase Console. For Google Sign-in, authorize this domain.
                       </p>
                       <ol className="list-decimal list-inside space-y-1 pl-0.5 font-semibold text-red-950">
-                        <li>Open your <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline text-red-900 font-extrabold hover:text-red-950">Firebase Console</a> &rarr; select <b>golf-labs</b></li>
-                        <li>Go to <b>Authentication</b> &rarr; <b>Settings</b> tab</li>
-                        <li>Click <b>Authorized domains</b> &rarr; <b>Add domain</b></li>
-                        <li>Paste: <code className="bg-red-100/80 px-1 py-0.5 rounded text-[8.5px] font-mono select-all font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'your-domain.run.app'}</code></li>
+                        <li>Open <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="underline text-red-900 font-extrabold hover:text-red-950">Firebase Console</a> &rarr; <b>Authentication</b></li>
+                        <li><b>Sign-in method</b> tab &rarr; Enable <b>Email/Password</b> & <b>Google</b></li>
+                        <li><b>Settings</b> tab &rarr; <b>Authorized domains</b> &rarr; Add domain: <code className="bg-red-100/80 px-1 py-0.5 rounded text-[8.5px] font-mono select-all font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'your-domain.run.app'}</code></li>
                       </ol>
                       
                       <div className="pt-1 flex gap-1">
@@ -415,7 +527,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                           className="flex-1 bg-red-100 hover:bg-red-200 text-red-900 font-extrabold py-1 px-1.5 rounded-md flex items-center justify-center gap-1 transition-colors text-[9px]"
                         >
                           {copied ? <Check className="w-2.5 h-2.5 text-[#6ca750]" /> : <Copy className="w-2.5 h-2.5" />}
-                          <span>{copied ? 'Copied hostname!' : 'Copy Current Domain'}</span>
+                          <span>{copied ? 'Copied hostname!' : 'Copy Domain'}</span>
                         </button>
                         <button
                           type="button"
@@ -437,19 +549,26 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                       src={user.photoURL}
                       alt="Avatar"
                       referrerPolicy="no-referrer"
-                      className="w-7 h-7 rounded-full border border-[#3d312a]/10"
+                      className="w-8 h-8 rounded-full border border-[#3d312a]/10"
                     />
                   ) : (
-                    <div className="w-7 h-7 rounded-full bg-[#db5641] text-white flex items-center justify-center font-bold text-[11px]">
-                      <User className="w-3.5 h-3.5" />
+                    <div className="w-8 h-8 rounded-full bg-[#db5641] text-white flex items-center justify-center font-black text-xs shadow-sm uppercase">
+                      {user.displayName ? user.displayName.charAt(0) : user.email ? user.email.charAt(0) : 'P'}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-[#3d312a] truncate text-[11px]">
-                      {user.displayName || 'Google Champion'}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-bold text-[#3d312a] truncate text-[11px]">
+                        {user.displayName || (user.email ? user.email.split('@')[0] : 'Golf Golfer')}
+                      </p>
+                      {isMartin && (
+                        <span className="bg-amber-100 text-amber-900 text-[8px] font-black px-1.5 py-0.2 rounded border border-amber-300">
+                          CREATOR
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[9px] text-[#7a7065] truncate font-semibold leading-none mt-0.5">
-                      {user.email}
+                      {user.email || 'Synced Player'}
                     </p>
                   </div>
                 </div>
@@ -475,7 +594,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   </div>
                   <button
                     onClick={onLogout}
-                    className="text-[#db5641] hover:text-[#c24a37] font-bold flex items-center gap-0.5 transition-colors"
+                    className="text-[#db5641] hover:text-[#c24a37] font-bold flex items-center gap-0.5 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-3 h-3" />
                     <span>Log out</span>
@@ -485,6 +604,242 @@ export const GameMenu: React.FC<GameMenuProps> = ({
             )}
           </div>
         </div>
+
+        {/* Email & Account Authentication Modal Overlay */}
+        {showAuthModal && (
+          <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-[#fcfaf4] border-2 border-[#3d312a] rounded-3xl max-w-md w-full p-6 shadow-2xl relative text-[#3d312a]">
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthFormError(null);
+                  setResetSuccessMsg(null);
+                }}
+                className="absolute top-4 right-4 text-[#7a7065] hover:text-[#3d312a] p-1.5 rounded-full hover:bg-[#3d312a]/5 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Modal Header */}
+              <div className="text-center mb-5">
+                <div className="w-12 h-12 rounded-2xl bg-[#db5641]/10 text-[#db5641] flex items-center justify-center mx-auto mb-2.5 font-bold">
+                  {authMode === 'signup' ? <UserPlus className="w-6 h-6" /> : authMode === 'reset' ? <Key className="w-6 h-6" /> : <Mail className="w-6 h-6" />}
+                </div>
+                <h3 className="text-xl font-black text-[#3d312a]">
+                  {authMode === 'signup' ? 'Create Free Account' : authMode === 'reset' ? 'Reset Account Password' : 'Sign In to Golf Lab'}
+                </h3>
+                <p className="text-xs text-[#7a7065] mt-1 font-medium">
+                  {authMode === 'signup' 
+                    ? 'Save your custom golf balls, gold coins, and 60-hole records.' 
+                    : authMode === 'reset'
+                    ? 'Enter your email address and we will send a password reset link.'
+                    : 'Sign in to access your cloud-saved balls, trails, and leaderboard stats.'}
+                </p>
+              </div>
+
+              {/* Mode Switch Tabs */}
+              {authMode !== 'reset' && (
+                <div className="grid grid-cols-2 p-1 bg-[#eae3d2]/60 rounded-xl mb-4 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setAuthFormError(null);
+                      setResetSuccessMsg(null);
+                    }}
+                    className={`py-1.5 rounded-lg transition-all text-center ${authMode === 'signin' ? 'bg-white text-[#3d312a] shadow-sm' : 'text-[#7a7065] hover:text-[#3d312a]'}`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signup');
+                      setAuthFormError(null);
+                      setResetSuccessMsg(null);
+                    }}
+                    className={`py-1.5 rounded-lg transition-all text-center ${authMode === 'signup' ? 'bg-white text-[#3d312a] shadow-sm' : 'text-[#7a7065] hover:text-[#3d312a]'}`}
+                  >
+                    Create Account
+                  </button>
+                </div>
+              )}
+
+              {/* Google Sign-in Alternative (for signin or signup modes) */}
+              {authMode !== 'reset' && (
+                <div className="mb-4">
+                  <button
+                    type="button"
+                    disabled={authLoading}
+                    onClick={handleGoogleClick}
+                    className="w-full py-2.5 px-4 bg-white hover:bg-[#faf6ee] border border-[#3d312a]/20 text-[#3d312a] rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-98 text-xs cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    <LogIn className="w-4 h-4 text-[#db5641]" />
+                    <span>Continue with Google</span>
+                  </button>
+
+                  <div className="relative my-4 text-center">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-[#3d312a]/15"></div>
+                    </div>
+                    <span className="relative px-3 bg-[#fcfaf4] text-[10px] text-[#7a7065] font-bold uppercase tracking-wider">
+                      Or continue with email
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Message */}
+              {authFormError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex items-start gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-red-950">Authentication Notice</p>
+                    <p className="text-[11px] text-red-800 mt-0.5">{authFormError}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Success Message (Password Reset) */}
+              {resetSuccessMsg && (
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-start gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-emerald-950">Check Your Email</p>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">{resetSuccessMsg}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Email / Password Form */}
+              <form onSubmit={handleEmailSubmit} className="space-y-3">
+                {authMode === 'signup' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#3d312a] mb-1">
+                      Golfer Name / Username (Optional)
+                    </label>
+                    <div className="relative">
+                      <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7a7065]" />
+                      <input
+                        type="text"
+                        value={authDisplayName}
+                        onChange={(e) => setAuthDisplayName(e.target.value)}
+                        placeholder="e.g. Master Golfer"
+                        className="w-full pl-9 pr-3 py-2 bg-white border border-[#3d312a]/20 rounded-xl text-xs font-semibold text-[#3d312a] focus:outline-none focus:border-[#db5641]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#3d312a] mb-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7a7065]" />
+                    <input
+                      type="email"
+                      required
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      placeholder="your.email@example.com"
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-[#3d312a]/20 rounded-xl text-xs font-semibold text-[#3d312a] focus:outline-none focus:border-[#db5641]"
+                    />
+                  </div>
+                </div>
+
+                {authMode !== 'reset' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-[#3d312a]">
+                        Password
+                      </label>
+                      {authMode === 'signin' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAuthMode('reset');
+                            setAuthFormError(null);
+                            setResetSuccessMsg(null);
+                          }}
+                          className="text-[10px] text-[#db5641] hover:underline font-bold"
+                        >
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <Key className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7a7065]" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        placeholder={authMode === 'signup' ? 'At least 6 characters' : 'Enter your password'}
+                        className="w-full pl-9 pr-9 py-2 bg-white border border-[#3d312a]/20 rounded-xl text-xs font-semibold text-[#3d312a] focus:outline-none focus:border-[#db5641]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(prev => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7a7065] hover:text-[#3d312a]"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full mt-2 bg-[#db5641] hover:bg-[#c24a37] text-white py-2.5 px-4 rounded-xl font-extrabold flex items-center justify-center gap-2 transition-all active:scale-98 text-xs cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {authLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Please wait...</span>
+                    </>
+                  ) : authMode === 'signup' ? (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span>Create Free Account</span>
+                    </>
+                  ) : authMode === 'reset' ? (
+                    <>
+                      <Key className="w-4 h-4" />
+                      <span>Send Password Reset Email</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-4 h-4" />
+                      <span>Sign In with Email</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Back to signin link if in reset mode */}
+              {authMode === 'reset' && (
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('signin');
+                      setAuthFormError(null);
+                      setResetSuccessMsg(null);
+                    }}
+                    className="text-xs text-[#7a7065] hover:text-[#3d312a] font-bold flex items-center justify-center gap-1 mx-auto"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Right Active Panel Content View */}
         <div className="flex-1 flex flex-col overflow-y-auto p-6 md:p-8">

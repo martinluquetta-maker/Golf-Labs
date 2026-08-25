@@ -21,6 +21,9 @@ import { calculateCoinsEarned, ALL_BALL_IDS, ALL_TRAIL_IDS } from './components/
 import { 
   getFirebaseServices, 
   authenticateWithGoogle, 
+  authenticateWithEmail,
+  registerWithEmail,
+  sendPasswordReset,
   logOutFromGoogle, 
   loadUserProfile, 
   saveUserProfile,
@@ -376,6 +379,80 @@ const App: React.FC = () => {
         code: err?.code || 'auth/popup-failed',
         message: err?.message || 'The authentication popup closed or failed. This usually happens if the domain is not authorized in your Firebase console, or if third-party popups are blocked by your browser.'
       });
+    }
+  };
+
+  const handleLoginEmail = async (email: string, pass: string) => {
+    try {
+      setSyncStatus('syncing');
+      setAuthError(null);
+      const loggedUser = await authenticateWithEmail(email, pass);
+      setUser(loggedUser);
+      setSyncStatus('synced');
+    } catch (err: any) {
+      console.error("Email authentication login error:", err);
+      setSyncStatus('offline');
+      let msg = err?.message || 'Failed to sign in with email.';
+      if (err?.code === 'auth/operation-not-allowed') {
+        msg = 'Email/Password authentication is not yet enabled in your Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Enable Email/Password.';
+      } else if (err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password') {
+        msg = 'Incorrect email or password. Please check your credentials or create a new account.';
+      } else if (err?.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
+      }
+      setAuthError({
+        code: err?.code || 'auth/email-failed',
+        message: msg
+      });
+      throw err;
+    }
+  };
+
+  const handleSignUpEmail = async (email: string, pass: string, displayName?: string) => {
+    try {
+      setSyncStatus('syncing');
+      setAuthError(null);
+      const loggedUser = await registerWithEmail(email, pass, displayName);
+      setUser(loggedUser);
+      setSyncStatus('synced');
+    } catch (err: any) {
+      console.error("Email registration error:", err);
+      setSyncStatus('offline');
+      let msg = err?.message || 'Failed to create account with email.';
+      if (err?.code === 'auth/operation-not-allowed') {
+        msg = 'Email/Password authentication is not yet enabled in your Firebase Console. Go to Firebase Console -> Authentication -> Sign-in method -> Enable Email/Password.';
+      } else if (err?.code === 'auth/email-already-in-use') {
+        msg = 'An account already exists with this email address. Please sign in instead.';
+      } else if (err?.code === 'auth/weak-password') {
+        msg = 'Password is too weak. Please use at least 6 characters.';
+      } else if (err?.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
+      }
+      setAuthError({
+        code: err?.code || 'auth/signup-failed',
+        message: msg
+      });
+      throw err;
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    try {
+      setAuthError(null);
+      await sendPasswordReset(email);
+    } catch (err: any) {
+      console.error("Password reset error:", err);
+      let msg = err?.message || 'Failed to send password reset email.';
+      if (err?.code === 'auth/user-not-found') {
+        msg = 'No account found with this email address.';
+      } else if (err?.code === 'auth/invalid-email') {
+        msg = 'Please enter a valid email address.';
+      }
+      setAuthError({
+        code: err?.code || 'auth/reset-failed',
+        message: msg
+      });
+      throw err;
     }
   };
 
@@ -945,6 +1022,9 @@ const App: React.FC = () => {
           onUnlockItems={handleUnlockItems}
           user={user}
           onLogin={handleLogin}
+          onLoginEmail={handleLoginEmail}
+          onRegisterEmail={handleSignUpEmail}
+          onResetPassword={handleResetPassword}
           onLogout={handleLogout}
           firebaseConfigured={firebaseConfigured}
           syncStatus={syncStatus}

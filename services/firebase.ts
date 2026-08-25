@@ -1,5 +1,14 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile
+} from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import config from '../firebase-applet-config.json';
 
@@ -107,6 +116,53 @@ export async function authenticateWithGoogle() {
     return result.user;
   } catch (error) {
     console.error("Google sign in popup error:", error);
+    throw error;
+  }
+}
+
+export async function authenticateWithEmail(email: string, password: string) {
+  const { auth, configured } = await getFirebaseServices();
+  if (!configured) {
+    throw new Error("Authentication cannot be established: Firebase configuration is not yet loaded.");
+  }
+  try {
+    const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+    return result.user;
+  } catch (error) {
+    console.error("Email sign in error:", error);
+    throw error;
+  }
+}
+
+export async function registerWithEmail(email: string, password: string, displayName?: string) {
+  const { auth, configured } = await getFirebaseServices();
+  if (!configured) {
+    throw new Error("Authentication cannot be established: Firebase configuration is not yet loaded.");
+  }
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    if (displayName && displayName.trim()) {
+      await updateProfile(result.user, {
+        displayName: displayName.trim()
+      });
+    }
+    return result.user;
+  } catch (error) {
+    console.error("Email registration error:", error);
+    throw error;
+  }
+}
+
+export async function sendPasswordReset(email: string) {
+  const { auth, configured } = await getFirebaseServices();
+  if (!configured) {
+    throw new Error("Authentication cannot be established: Firebase configuration is not yet loaded.");
+  }
+  try {
+    await sendPasswordResetEmail(auth, email.trim());
+    return true;
+  } catch (error) {
+    console.error("Password reset error:", error);
     throw error;
   }
 }
