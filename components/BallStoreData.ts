@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type ItemRarity = 'common' | 'rare' | 'legendary' | 'mythical';
+export type ItemRarity = 'common' | 'rare' | 'legendary' | 'mythical' | 'owner' | 'unobtainable';
 
 export interface RarityConfig {
   id: ItemRarity;
@@ -62,6 +62,28 @@ export const RARITIES: Record<ItemRarity, RarityConfig> = {
     dropRate: 4,
     basePrice: 3500,
   },
+  owner: {
+    id: 'owner',
+    name: 'Owner',
+    color: '#f59e0b',
+    badgeBg: 'bg-gradient-to-r from-amber-950 via-stone-900 to-amber-950 text-amber-300 border-amber-400/80 shadow-[0_0_10px_rgba(245,158,11,0.4)]',
+    badgeText: 'text-amber-400',
+    borderColor: 'border-amber-400',
+    glowColor: 'rgba(245, 158, 11, 1)',
+    dropRate: 0,
+    basePrice: 0,
+  },
+  unobtainable: {
+    id: 'unobtainable',
+    name: 'Unobtainable',
+    color: '#e11d48',
+    badgeBg: 'bg-gradient-to-r from-rose-950 via-stone-900 to-rose-950 text-rose-300 border-rose-500/80 shadow-[0_0_10px_rgba(225,29,72,0.4)]',
+    badgeText: 'text-rose-400',
+    borderColor: 'border-rose-500',
+    glowColor: 'rgba(225, 29, 72, 1)',
+    dropRate: 0,
+    basePrice: 0,
+  },
 };
 
 export interface BallItem {
@@ -102,7 +124,7 @@ export const EXCLUSIVE_BALLS: BallItem[] = [
   {
     id: 'exclusive_net',
     name: 'Net',
-    rarity: 'mythical',
+    rarity: 'owner',
     price: 0,
     description: 'Exclusive Creator pattern with a 3D geometric triangulated geodesic wireframe mesh over a warm cork band.',
     color: '#18181b',
@@ -116,7 +138,7 @@ export const EXCLUSIVE_BALLS: BallItem[] = [
   {
     id: 'exclusive_scribble',
     name: 'Scribble',
-    rarity: 'mythical',
+    rarity: 'owner',
     price: 0,
     description: 'Exclusive Creator pattern with dynamic high-contrast hand-drawn doodle loops and continuous ink calligraphy.',
     color: '#fafaf9',
@@ -133,7 +155,7 @@ export const EXCLUSIVE_TRAILS: TrailItem[] = [
   {
     id: 'exclusive_trail_net',
     name: 'Net Matrix Mesh',
-    rarity: 'mythical',
+    rarity: 'owner',
     price: 0,
     description: 'Emits an interconnected neon wireframe polygon mesh with shimmering vertex nodes as you putt.',
     color: '#38bdf8',
@@ -147,7 +169,7 @@ export const EXCLUSIVE_TRAILS: TrailItem[] = [
   {
     id: 'exclusive_trail_scribble',
     name: 'Scribble Doodle Ink',
-    rarity: 'mythical',
+    rarity: 'owner',
     price: 0,
     description: 'Leaves a whimsical ribbon of swirling ink loops, calligraphy scribbles, and doodle flourishes.',
     color: '#09090b',

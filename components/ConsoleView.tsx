@@ -587,7 +587,7 @@ export const ConsoleView: React.FC<ConsoleViewProps> = ({
                     <span>Complete Cosmetics Vault</span>
                   </div>
                   <p className="text-xs text-[#7a7065] font-medium leading-relaxed">
-                    Instantly unlock all 102 balls and 102 trails across all rarities (Common, Rare, Legendary, Mythical, Exclusive).
+                    Instantly unlock all 102 balls and 102 trails across all rarities (Common, Rare, Legendary, Mythical, Owner / Unobtainable).
                   </p>
                 </div>
                 <button

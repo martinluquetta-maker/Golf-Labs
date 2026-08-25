@@ -985,7 +985,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
 
               {/* Rarity filter tabs */}
               <div className="flex items-center gap-1 overflow-x-auto text-[10px] font-black scrollbar-none">
-                {(['all', 'common', 'rare', 'legendary', 'mythical'] as const).map((r) => (
+                {(['all', 'common', 'rare', 'legendary', 'mythical', 'owner'] as const).map((r) => (
                   <button
                     key={r}
                     onClick={() => setSelectedRarity(r)}
@@ -995,7 +995,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
                         : 'bg-white text-[#7a7065] border border-[#3d312a]/10'
                     }`}
                   >
-                    {r}
+                    {r === 'owner' ? '👑 Owner' : r}
                   </button>
                 ))}
               </div>
@@ -1115,7 +1115,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
               </div>
 
               <div className="flex items-center gap-1 overflow-x-auto text-[10px] font-black">
-                {(['all', 'common', 'rare', 'legendary', 'mythical'] as const).map((r) => (
+                {(['all', 'common', 'rare', 'legendary', 'mythical', 'owner'] as const).map((r) => (
                   <button
                     key={r}
                     onClick={() => setSelectedRarity(r)}
@@ -1125,7 +1125,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
                         : 'bg-white text-[#7a7065] border border-[#3d312a]/10'
                     }`}
                   >
-                    {r}
+                    {r === 'owner' ? '👑 Owner' : r}
                   </button>
                 ))}
               </div>
