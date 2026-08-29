@@ -33,8 +33,21 @@ import {
 } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ShieldAlert } from 'lucide-react';
+import { 
+  MultiplayerRoom, 
+  subscribeToRoom, 
+  updatePlayerAim, 
+  updatePlayerLivePosition, 
+  recordHoleComplete, 
+  submitStroke, 
+  leaveRoom,
+  sendEmote 
+} from './services/multiplayerService';
+import { MultiplayerGameHUD } from './components/MultiplayerGameHUD';
+import { getRankFromRP } from './components/RankData';
 
 const App: React.FC = () => {
+  const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<MultiplayerRoom | null>(null);
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
       // Look for ball and trail purchases in long-term offline storage
@@ -181,6 +194,45 @@ const App: React.FC = () => {
     const name = (u.displayName || '').toLowerCase().trim();
     return email === 'martin.luquetta@sgs.edu.co' || name === 'martin' || email.startsWith('martin.luquetta');
   }, []);
+
+  // Real-time synchronization for active multiplayer match
+  useEffect(() => {
+    if (!activeMultiplayerRoom?.id) return;
+    const unsub = subscribeToRoom(activeMultiplayerRoom.id, (updatedRoom) => {
+      if (updatedRoom) {
+        setActiveMultiplayerRoom(updatedRoom);
+      }
+    });
+    return () => unsub();
+  }, [activeMultiplayerRoom?.id]);
+
+  const currentUserId = user?.uid || 'guest_local';
+
+  const opponentPlayers = useMemo(() => {
+    if (!activeMultiplayerRoom) return [];
+    return activeMultiplayerRoom.players.filter(p => p.odUserId !== currentUserId);
+  }, [activeMultiplayerRoom, currentUserId]);
+
+  const handleLiveAim = useCallback((aim: { isAiming: boolean; power: number; angle: number } | null) => {
+    if (activeMultiplayerRoom?.id) {
+      updatePlayerAim(activeMultiplayerRoom.id, currentUserId, aim);
+    }
+  }, [activeMultiplayerRoom?.id, currentUserId]);
+
+  const handleLivePosition = useCallback((pos: { x: number; y: number }, vel: { x: number; y: number }, isMoving: boolean) => {
+    if (activeMultiplayerRoom?.id) {
+      updatePlayerLivePosition(activeMultiplayerRoom.id, currentUserId, pos, vel, isMoving);
+    }
+  }, [activeMultiplayerRoom?.id, currentUserId]);
+
+  const activeLevel = useMemo(() => {
+    if (activeMultiplayerRoom) {
+      const holeIdx = activeMultiplayerRoom.currentHoleIndex || 0;
+      const levelId = activeMultiplayerRoom.holeIds[holeIdx] ?? 0;
+      return LEVELS[levelId] || LEVELS[0];
+    }
+    return currentLevel;
+  }, [activeMultiplayerRoom, currentLevel]);
 
   // Check ban status periodically and on user change
   const verifyBan = useCallback(async () => {
@@ -1071,31 +1123,85 @@ const App: React.FC = () => {
   return (
     <>
     <div className="w-full h-[calc(100%-100px)] bg-[#3d312a] font-sans overflow-hidden relative rounded-2xl">
-      {renderHUD()}
+      {!activeMultiplayerRoom && renderHUD()}
+
+      {/* Active Multiplayer Match In-Game HUD Overlay & Post-Match Results */}
+      {activeMultiplayerRoom && (
+        <MultiplayerGameHUD
+          room={activeMultiplayerRoom}
+          currentUserId={currentUserId}
+          currentLevelPar={activeLevel.par}
+          currentStrokes={gameState.strokes}
+          onSendEmote={(emoji) => {
+            if (activeMultiplayerRoom) {
+              sendEmote(activeMultiplayerRoom.id, currentUserId, emoji);
+            }
+          }}
+          onLeaveMatch={async () => {
+            if (activeMultiplayerRoom) {
+              await leaveRoom(activeMultiplayerRoom.id, currentUserId);
+            }
+            setActiveMultiplayerRoom(null);
+            setShowMainMenu(true);
+          }}
+          onNextHole={() => {
+            setGameState(prev => ({
+              ...prev,
+              strokes: 0,
+              holeInOneStreak: 0,
+              state: 'AIMING'
+            }));
+          }}
+          onRPUpdated={(newRP, wonMatch) => {
+            setGameState(prev => ({
+              ...prev,
+              rp: newRP,
+              rankedWins: wonMatch ? (prev.rankedWins || 0) + 1 : (prev.rankedWins || 0),
+              rankedMatches: (prev.rankedMatches || 0) + 1
+            }));
+          }}
+        />
+      )}
 
       <GameCanvas 
-          key={`${currentLevel.id}-${retryCount}`}
-          level={currentLevel}
-          onStroke={handleStroke}
-          onHole={handleHole}
+          key={activeMultiplayerRoom ? `mp-${activeMultiplayerRoom.id}-${activeMultiplayerRoom.currentHoleIndex}` : `${currentLevel.id}-${retryCount}`}
+          level={activeLevel}
+          onStroke={() => {
+            handleStroke();
+            if (activeMultiplayerRoom) {
+              submitStroke(activeMultiplayerRoom.id, currentUserId, (gameState.strokes || 0) + 1);
+            }
+          }}
+          onHole={() => {
+            handleHole();
+            if (activeMultiplayerRoom) {
+              const finalStrokes = (gameState.strokes || 0) + 1;
+              recordHoleComplete(activeMultiplayerRoom.id, currentUserId, finalStrokes);
+            }
+          }}
           equippedBallId={gameState.equippedBallId ?? 'classic_white'}
           equippedTrailId={gameState.equippedTrailId ?? 'trail_dust_white'}
           strokes={gameState.strokes}
+          opponentPlayers={opponentPlayers}
+          onLiveAim={handleLiveAim}
+          onLivePosition={handleLivePosition}
       />
       
       {/* Floating Main Menu Button (Top-Right) */}
-      <button 
-        type="button"
-        onClick={() => {
-          playForeground(getPath("/media/audio/sfx/global/buttonclick.mp3"));
-          setShowMainMenu(true);
-        }}
-        className="absolute top-4 right-4 z-40 px-3 py-1.5 rounded-full font-bold text-xs shadow-lg bg-[#faf6ee]/90 text-[#3d312a] border border-[#3d312a]/20 hover:bg-[#faf6ee] flex items-center gap-1.5 pointer-events-auto"
-      >
-        <Menu className="w-3.5 h-3.5" /> <span>Menu</span>
-      </button>
+      {!activeMultiplayerRoom && (
+        <button 
+          type="button"
+          onClick={() => {
+            playForeground(getPath("/media/audio/sfx/global/buttonclick.mp3"));
+            setShowMainMenu(true);
+          }}
+          className="absolute top-4 right-4 z-40 px-3 py-1.5 rounded-full font-bold text-xs shadow-lg bg-[#faf6ee]/90 text-[#3d312a] border border-[#3d312a]/20 hover:bg-[#faf6ee] flex items-center gap-1.5 pointer-events-auto"
+        >
+          <Menu className="w-3.5 h-3.5" /> <span>Menu</span>
+        </button>
+      )}
 
-      {renderOverlay()}
+      {!activeMultiplayerRoom && renderOverlay()}
 
       {showMainMenu && (
         <GameMenu
@@ -1109,8 +1215,16 @@ const App: React.FC = () => {
               lastCommentary: null,
               commentaryLoading: false
             }));
+            setActiveMultiplayerRoom(null);
             setShowMainMenu(false);
           }}
+          onStartMultiplayerMatch={(room) => {
+            setActiveMultiplayerRoom(room);
+            setShowMainMenu(false);
+          }}
+          playerRP={gameState.rp ?? (isMartinUser(user) ? 3500 : 0)}
+          rankedWins={gameState.rankedWins ?? 0}
+          rankedMatches={gameState.rankedMatches ?? 0}
           currentWorld={gameState.currentWorld || 'classic'}
           onSelectWorld={(world) => {
             if (world === 'cyber' && !isCyberUnlocked) return;

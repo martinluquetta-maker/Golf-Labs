@@ -74,6 +74,9 @@ export interface GameState {
   unlockedTrailIds?: string[];
   equippedTrailId?: string;
   holeInOneStreak?: number;
+  rp?: number;
+  rankedWins?: number;
+  rankedMatches?: number;
 }
 
 // ========================================

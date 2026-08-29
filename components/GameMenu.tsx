@@ -7,11 +7,16 @@ import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
 import { ConsoleView } from './ConsoleView';
+import { OnlineMultiplayerView } from './OnlineMultiplayerView';
+import { RankLogo, RankBadge } from './RankBadges';
+import { getRankFromRP, getRankProgress, RANK_TIERS } from './RankData';
+import { RanksModal } from './RanksModal';
+import { MultiplayerRoom } from '../services/multiplayerService';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -45,6 +50,12 @@ interface GameMenuProps {
   isCyberUnlocked?: boolean;
   onUnlockAllLevels?: () => void;
   onSetAllScoresHIO?: () => void;
+  onOpenMultiplayer?: () => void;
+  onOpenRanks?: () => void;
+  onStartMultiplayerMatch?: (room: MultiplayerRoom) => void;
+  playerRP?: number;
+  rankedWins?: number;
+  rankedMatches?: number;
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -79,10 +90,20 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   isCyberUnlocked = false,
   onUnlockAllLevels,
   onSetAllScoresHIO,
+  onOpenMultiplayer = () => {},
+  onOpenRanks = () => {},
+  onStartMultiplayerMatch = () => {},
+  playerRP = 0,
+  rankedWins = 0,
+  rankedMatches = 0,
 }) => {
-  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'store' | 'how-to' | 'settings' | 'leaderboard' | 'achievements' | 'console'>('play');
+  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'multiplayer' | 'ranks' | 'store' | 'leaderboard' | 'achievements' | 'how-to' | 'settings' | 'console'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
+  const [showRanksModal, setShowRanksModal] = useState(false);
+
+  const currentRank = getRankFromRP(playerRP);
+  const rankProg = getRankProgress(playerRP);
 
   // Email & Google Auth Modal State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -301,6 +322,38 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               >
                 <Play className="w-4 h-4 shrink-0" />
                 <span>Play Lab</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('multiplayer')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap md:whitespace-normal shrink-0 border border-amber-500/30 ${
+                  activeTab === 'multiplayer'
+                    ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md ring-2 ring-amber-400/40'
+                    : 'bg-amber-500/10 text-amber-900 hover:bg-amber-500/20'
+                }`}
+              >
+                <Swords className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Modo Online</span>
+                <span className="ml-auto bg-amber-900 text-amber-300 text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                  LIVE
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('ranks')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap md:whitespace-normal shrink-0 ${
+                  activeTab === 'ranks'
+                    ? 'bg-[#3d312a] text-[#faf6ee] shadow-md'
+                    : 'text-[#3d312a]/70 hover:bg-[#3d312a]/5 hover:text-[#3d312a]'
+                }`}
+              >
+                <div className="shrink-0 scale-90 -ml-1">
+                  <RankLogo tier={currentRank.tier} size={20} />
+                </div>
+                <span>Rangos</span>
+                <span className="ml-auto text-[10px] font-mono font-black text-amber-600 bg-amber-100/80 px-1.5 py-0.5 rounded-md">
+                  {playerRP} RP
+                </span>
               </button>
 
               <button
@@ -600,6 +653,44 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                     <span>Log out</span>
                   </button>
                 </div>
+
+                {/* Player Rank Summary Box */}
+                <div 
+                  onClick={() => setShowRanksModal(true)}
+                  className="mt-2 bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent border border-amber-500/25 rounded-xl p-2.5 cursor-pointer hover:border-amber-500/50 transition-all group"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <RankLogo tier={currentRank.tier} size={28} />
+                      <div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] font-black text-amber-950 leading-none">
+                            {currentRank.name}
+                          </span>
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-200/60 px-1 rounded">
+                            T{currentRank.tier}
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-bold text-[#7a7065]">
+                          {playerRP} RP
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-amber-700 group-hover:translate-x-0.5 transition-transform" />
+                  </div>
+
+                  {/* Mini Progress Bar */}
+                  <div className="w-full bg-[#3d312a]/10 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 h-full rounded-full transition-all"
+                      style={{ width: `${Math.max(5, rankProg.progressPercent)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[8px] font-bold text-[#7a7065] mt-1">
+                    <span>{rankedWins}W / {rankedMatches}M</span>
+                    <span>{rankProg.nextTier ? `${rankProg.rpInTier}/${rankProg.rpForNextTier} RP` : 'MAX RANK'}</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -880,7 +971,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 )}
 
                 {/* Return Point Indicator */}
-                <div className="bg-[#efe6d4]/50 border border-[#efe6d4] rounded-2xl p-4 flex justify-between items-center">
+                <div className="bg-[#efe6d4]/50 border border-[#efe6d4] rounded-2xl p-4 flex justify-between items-center mb-4">
                   <div className="flex items-center gap-3">
                     <span className="h-10 w-10 text-lg rounded-xl bg-[#db5641] text-white flex items-center justify-center font-black">
                       {currentLevelIndex + 1}
@@ -894,15 +985,189 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                     Par {activeLevels[currentLevelIndex]?.par}
                   </div>
                 </div>
+
+                {/* Quick Action Cards: Multiplayer 1v1 & Ranks System */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                  <div 
+                    onClick={() => setActiveTab('multiplayer')}
+                    className="bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-600/5 border border-amber-500/30 hover:border-amber-500 rounded-2xl p-4 cursor-pointer transition-all hover:shadow-md group flex flex-col justify-between"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-700">
+                          <Swords className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-[#3d312a] text-sm group-hover:text-amber-700 transition-colors">
+                            Modo Online 1v1
+                          </h4>
+                          <span className="text-[11px] text-[#7a7065] font-semibold">
+                            Salas & Matchmaking
+                          </span>
+                        </div>
+                      </div>
+                      <span className="bg-amber-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse">
+                        RANKED
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs font-bold text-amber-800">
+                      <span>Jugar con otros jugadores</span>
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+
+                  <div 
+                    onClick={() => setActiveTab('ranks')}
+                    className="bg-[#faf6ee] border border-[#3d312a]/15 hover:border-amber-500/50 rounded-2xl p-4 cursor-pointer transition-all hover:shadow-md group flex flex-col justify-between"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-[#3d312a]/5 flex items-center justify-center">
+                          <RankLogo tier={currentRank.tier} size={32} />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-[#3d312a] text-sm group-hover:text-amber-700 transition-colors">
+                            {currentRank.name}
+                          </h4>
+                          <span className="text-[11px] text-amber-700 font-bold font-mono">
+                            {playerRP} RP (Tier {currentRank.tier}/7)
+                          </span>
+                        </div>
+                      </div>
+                      <Trophy className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs font-bold text-[#3d312a]/80">
+                      <span>Ver los 7 Rangos & Logos</span>
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="pt-8">
+              <div className="pt-4">
                 <button
                   onClick={() => onStartGame(currentLevelIndex)}
                   className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-4 px-6 rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
                   <Play className="w-5 h-5 fill-white" />
                   <span>TEE OFF NOW (HOLE {currentLevelIndex + 1})</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: MULTIPLAYER ONLINE MODE */}
+          {activeTab === 'multiplayer' && (
+            <div className="flex-1 flex flex-col -m-6 md:-m-8">
+              <OnlineMultiplayerView
+                currentUser={{
+                  uid: user?.uid || `guest_${Math.random().toString(36).substring(2, 8)}`,
+                  displayName: user?.displayName || (user?.email ? user.email.split('@')[0] : 'Golfista Invitado'),
+                  email: user?.email
+                }}
+                playerRP={playerRP}
+                equippedBallId={equippedBallId}
+                equippedTrailId={equippedTrailId}
+                levelIds={activeLevels.map((_, i) => i)}
+                onStartMatch={(room) => {
+                  onStartMultiplayerMatch(room);
+                }}
+                onOpenRanksModal={() => setShowRanksModal(true)}
+                onBackToMenu={() => setActiveTab('play')}
+              />
+            </div>
+          )}
+
+          {/* TAB: RANKS SHOWCASE */}
+          {activeTab === 'ranks' && (
+            <div className="flex-1 flex flex-col justify-between animate-in fade-in duration-200">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      onClick={() => setActiveTab('play')}
+                      className="w-8 h-8 rounded-xl bg-[#3d312a]/5 hover:bg-[#3d312a]/10 flex items-center justify-center text-[#3d312a]"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div>
+                      <h2 className="text-xl font-black text-[#3d312a]">Sistema de Rangos Oficial</h2>
+                      <p className="text-xs text-[#7a7065] font-semibold">
+                        Gana partidas en el Modo Online 1v1 para acumular RP y ascender de rango
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-xl">
+                    <RankLogo tier={currentRank.tier} size={24} />
+                    <div>
+                      <span className="text-[10px] text-amber-800 font-bold block leading-none">Tu Rango</span>
+                      <span className="text-xs font-black text-amber-950 font-mono">{playerRP} RP</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* All 7 Ranks list */}
+                <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+                  {RANK_TIERS.map((tier) => {
+                    const isUnlocked = playerRP >= tier.minRP;
+                    const isCurrent = currentRank.tier === tier.tier;
+
+                    return (
+                      <div
+                        key={tier.tier}
+                        className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-4 ${
+                          isCurrent
+                            ? 'bg-amber-500/10 border-amber-500 shadow-sm ring-2 ring-amber-400/30'
+                            : isUnlocked
+                            ? 'bg-white/80 border-[#3d312a]/15'
+                            : 'bg-[#efe6d4]/20 border-[#3d312a]/10 opacity-70'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="shrink-0">
+                            <RankLogo tier={tier.tier} size={44} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-black text-[#3d312a] truncate">
+                                {tier.name}
+                              </span>
+                              <span className="text-[10px] font-bold text-[#7a7065] bg-[#3d312a]/5 px-1.5 py-0.5 rounded">
+                                Rango {tier.tier}
+                              </span>
+                              {isCurrent && (
+                                <span className="bg-[#db5641] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                                  ACTUAL
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[#7a7065] font-semibold mt-0.5">
+                              {tier.elementDescription}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-black font-mono text-[#3d312a] block">
+                            {tier.maxRP === Infinity ? `${tier.minRP}+ RP` : `${tier.minRP} - ${tier.maxRP} RP`}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                            {tier.rewardPerWin}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button
+                  onClick={() => setActiveTab('multiplayer')}
+                  className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3 px-4 rounded-xl font-black text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+                >
+                  <Swords className="w-4 h-4" />
+                  <span>JUGAR MODO ONLINE (GANAR RP)</span>
                 </button>
               </div>
             </div>
@@ -1210,6 +1475,15 @@ export const GameMenu: React.FC<GameMenuProps> = ({
           )}
         </div>
       </div>
+
+      {/* Ranks & Tier Badges Modal */}
+      <RanksModal
+        isOpen={showRanksModal}
+        onClose={() => setShowRanksModal(false)}
+        currentRP={playerRP}
+        rankedWins={rankedWins}
+        rankedMatches={rankedMatches}
+      />
     </div>
   );
 };

@@ -90,5 +90,12 @@ service cloud.firestore {
         (request.auth.token.name != null && request.auth.token.name.matches('(?i).*martin.*'))
       );
     }
+
+    // Real-Time Online Multiplayer Rooms & Matchmaking
+    match /multiplayer_rooms/{roomId} {
+      allow read: if true;
+      allow create, update: if true;
+      allow delete: if isSignedIn();
+    }
   }
 }

@@ -43,6 +43,8 @@ import { getPath } from "../utils/path";
 import { ICON_PATHS } from './Icons';
 import { PORTRAIT_SCALE_OVERRIDES } from '../levels';
 import { BALLS_STORE_ITEMS, TRAILS_STORE_ITEMS, TrailItem } from './BallStoreData';
+import { MultiplayerPlayer } from '../services/multiplayerService';
+import { getRankFromRP } from './RankData';
 
 interface BoostTile extends Vector2 {
   dx: number;
@@ -101,12 +103,25 @@ interface GameCanvasProps {
   equippedBallId?: string;
   equippedTrailId?: string;
   strokes: number;
+  opponentPlayers?: MultiplayerPlayer[];
+  onLivePosition?: (pos: Vector2, vel: Vector2, isMoving: boolean) => void;
+  onLiveAim?: (isAiming: boolean, angle?: number, power?: number) => void;
 }
 
 const TARGET_FPS = 60;
 const FRAME_DURATION = 1000 / TARGET_FPS;
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equippedBallId, equippedTrailId, strokes }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ 
+  level, 
+  onStroke, 
+  onHole, 
+  equippedBallId, 
+  equippedTrailId, 
+  strokes,
+  opponentPlayers = [],
+  onLivePosition,
+  onLiveAim
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wallsRef = useRef<Wall[]>([]);
@@ -2023,6 +2038,98 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ level, onStroke, onHole, equipp
         ctx.arc(b.pos.x - b.radius * 0.3, b.pos.y - b.radius * 0.3, b.radius * 0.22, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.42)';
         ctx.fill();
+    }
+
+    // Render Multiplayer Opponent Balls, Aiming Tracers, and Floating Nametags
+    if (opponentPlayers && opponentPlayers.length > 0) {
+      opponentPlayers.forEach((opp) => {
+        if (!opp.position || opp.hasFinishedHole) return;
+
+        const oppPos = opp.position;
+        const oppRadius = b.radius || 7;
+        const oppRank = getRankFromRP(opp.rp || 0);
+
+        // 1. Opponent Ball Drop Shadow
+        ctx.beginPath();
+        ctx.ellipse(oppPos.x + 3, oppPos.y + 6, oppRadius, oppRadius * 0.6, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fill();
+
+        // 2. Opponent Ball Body
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(oppPos.x, oppPos.y, oppRadius, 0, Math.PI * 2);
+        const oppGrad = ctx.createRadialGradient(
+          oppPos.x - oppRadius * 0.3, 
+          oppPos.y - oppRadius * 0.3, 
+          0, 
+          oppPos.x, 
+          oppPos.y, 
+          oppRadius
+        );
+        oppGrad.addColorStop(0, '#ffffff');
+        oppGrad.addColorStop(0.5, '#60a5fa'); // Vibrant electric blue ghost ball
+        oppGrad.addColorStop(1, '#1d4ed8');
+        ctx.fillStyle = oppGrad;
+        ctx.fill();
+
+        // Ball border
+        ctx.strokeStyle = '#93c5fd';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // Specular highlight
+        ctx.beginPath();
+        ctx.arc(oppPos.x - oppRadius * 0.3, oppPos.y - oppRadius * 0.3, oppRadius * 0.22, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.fill();
+        ctx.restore();
+
+        // 3. Opponent Aiming Indicator
+        if (opp.isAiming && typeof opp.aimAngle === 'number' && typeof opp.aimPower === 'number' && opp.aimPower > 5) {
+          ctx.save();
+          const aimLen = Math.min(opp.aimPower, 100) * 0.8;
+          const aimEndX = oppPos.x + Math.cos(opp.aimAngle) * aimLen;
+          const aimEndY = oppPos.y + Math.sin(opp.aimAngle) * aimLen;
+
+          ctx.strokeStyle = 'rgba(96, 165, 250, 0.7)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(oppPos.x, oppPos.y);
+          ctx.lineTo(aimEndX, aimEndY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+
+        // 4. Floating Name Tag with Rank Color
+        ctx.save();
+        const tagText = `${opp.displayName} (${opp.strokes || 0}g)`;
+        ctx.font = 'bold 9px sans-serif';
+        const tagMetrics = ctx.measureText(tagText);
+        const tagWidth = tagMetrics.width + 12;
+        const tagHeight = 15;
+        const tagX = oppPos.x - tagWidth / 2;
+        const tagY = oppPos.y - oppRadius - 18;
+
+        // Tag background pill
+        ctx.fillStyle = 'rgba(28, 20, 15, 0.88)';
+        ctx.beginPath();
+        ctx.roundRect(tagX, tagY, tagWidth, tagHeight, 4);
+        ctx.fill();
+
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tagText, oppPos.x, tagY + tagHeight / 2);
+        ctx.restore();
+      });
     }
 
     let activeDragStart = dragStart;
