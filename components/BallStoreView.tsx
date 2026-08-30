@@ -43,6 +43,7 @@ import {
 } from '../services/firebase';
 import useAudio from '../hooks/useAudio';
 import { getPath } from '../utils/path';
+import { Language, t } from '../utils/translations';
 
 interface BallStoreViewProps {
   coins: number;
@@ -58,6 +59,7 @@ interface BallStoreViewProps {
   onUnlockItems?: (ballIds: string[], trailIds: string[]) => void;
   user?: any;
   onClose?: () => void;
+  language?: Language;
 }
 
 export const BallStoreView: React.FC<BallStoreViewProps> = ({
@@ -74,6 +76,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
   onUnlockItems = () => {},
   user,
   onClose,
+  language = 'es',
 }) => {
   const { playForeground } = useAudio();
   const [activeTab, setActiveTab] = useState<'daily' | 'chests' | 'locker' | 'catalog'>('daily');
@@ -656,7 +659,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
             }`}
           >
             <Clock className="w-3.5 h-3.5 text-[#db5641]" />
-            <span>Daily Shop</span>
+            <span>{t('store_dailyShop', language)}</span>
             <span className="bg-[#db5641] text-white text-[9px] px-1.5 py-0.2 rounded-full">5+5</span>
           </button>
 
@@ -669,7 +672,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
             }`}
           >
             <Gift className="w-3.5 h-3.5 text-amber-500" />
-            <span>Mystery Chests</span>
+            <span>{t('store_mysteryChests', language)}</span>
           </button>
 
           <button
@@ -681,7 +684,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
             }`}
           >
             <Package className="w-3.5 h-3.5 text-blue-500" />
-            <span>My Locker ({ownedBallsCount + ownedTrailsCount})</span>
+            <span>{t('store_myLocker', language)} ({ownedBallsCount + ownedTrailsCount})</span>
           </button>
 
           <button
@@ -693,7 +696,7 @@ export const BallStoreView: React.FC<BallStoreViewProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5 text-purple-500" />
-            <span>All 200 Items & Odds</span>
+            <span>{t('store_allCatalog', language)}</span>
           </button>
         </div>
 

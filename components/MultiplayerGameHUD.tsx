@@ -11,7 +11,8 @@ import {
   leaveRoom 
 } from '../services/multiplayerService';
 import { RankLogo } from './RankBadges';
-import { getRankFromRP } from './RankData';
+import { getRankFromRP, getLocalizedRankTier } from './RankData';
+import { Language, t } from '../utils/translations';
 import { 
   Trophy, 
   Swords, 
@@ -35,18 +36,8 @@ export interface MultiplayerGameHUDProps {
   onNextHole?: () => void;
   onExitMultiplayer?: () => void;
   onRPUpdated?: (newRP: number, wonMatch?: boolean) => void;
+  language?: Language;
 }
-
-const QUICK_EMOTES = [
-  { emoji: '🔥', text: '¡Buen tiro!' },
-  { emoji: '⛳', text: '¡Hole in One!' },
-  { emoji: '👏', text: '¡Buena partida!' },
-  { emoji: '🎯', text: '¡Puntería perfecta!' },
-  { emoji: '😱', text: '¡No puede ser!' },
-  { emoji: '🏆', text: '¡GG!' },
-  { emoji: '😂', text: 'Jajaja' },
-  { emoji: '🍀', text: '¡Buena suerte!' },
-];
 
 export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
   room,
@@ -58,6 +49,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
   onNextHole,
   onExitMultiplayer,
   onRPUpdated,
+  language = 'es',
 }) => {
   const [showEmotePicker, setShowEmotePicker] = useState(false);
   const [activeEmotes, setActiveEmotes] = useState<Array<{ id: string; name: string; emoji: string; text: string }>>([]);
@@ -98,6 +90,17 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
     }
   }, [room.status, room.results, currentUserId, onRPUpdated, room.winnerUid]);
 
+  const QUICK_EMOTES = [
+    { emoji: '🔥', text: t('emote_goodShot', language) },
+    { emoji: '⛳', text: '¡Hole in One!' },
+    { emoji: '👏', text: t('emote_goodGame', language) },
+    { emoji: '🎯', text: t('emote_perfectAim', language) },
+    { emoji: '😱', text: t('emote_unbelievable', language) },
+    { emoji: '🏆', text: t('emote_gg', language) },
+    { emoji: '😂', text: 'Haha!' },
+    { emoji: '🍀', text: t('emote_goodLuck', language) },
+  ];
+
   const handleSendEmote = (emoji: string, text: string) => {
     if (!me) return;
     if (onSendEmote) {
@@ -123,17 +126,17 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
             </div>
             {isWinner && (
               <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-400 text-black text-[10px] font-black uppercase px-3 py-0.5 rounded-full border border-black shadow-md">
-                👑 ¡VICTORIA!
+                👑 {t('mp_victory', language)}
               </span>
             )}
           </div>
 
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              {isWinner ? '¡Has Ganado el Duelo!' : 'Partida Finalizada'}
+              {isWinner ? t('mp_youWon', language) : t('mp_matchEnded', language)}
             </h2>
             <p className="text-xs text-stone-300 font-semibold mt-1">
-              Resultados del circuito competitivo de {room.holeCount} hoyos
+              {t('mp_resultsDesc', language)} ({room.holeCount} holes)
             </p>
           </div>
 
@@ -144,7 +147,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
                 <RankLogo tier={myResult.rankTier} size={46} showGlow />
                 <div className="text-left">
                   <span className="text-[10px] font-black uppercase text-amber-300">
-                    {getRankFromRP(myResult.newRP).name}
+                    {getLocalizedRankTier(getRankFromRP(myResult.newRP), language).name}
                   </span>
                   <div className="text-sm font-mono font-black text-white">
                     {myResult.newRP} RP
@@ -157,7 +160,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
                   {myResult.rpChange >= 0 ? `+${myResult.rpChange}` : myResult.rpChange} RP
                 </span>
                 <span className="text-[10px] font-bold text-stone-400 block">
-                  Puntaje Clasificatorio
+                  {t('ranks_title', language)}
                 </span>
               </div>
             </div>
@@ -166,7 +169,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
           {/* Leaderboard Table */}
           <div className="space-y-2 text-left">
             <span className="text-[11px] font-black uppercase text-stone-400 block px-1">
-              Tabla de Posiciones
+              {t('tab_leaderboard', language)}
             </span>
             <div className="space-y-1.5">
               {rankings.map((r, idx) => (
@@ -184,12 +187,12 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
                     </span>
                     <RankLogo tier={r.rankTier} size={28} />
                     <span className="font-black text-xs truncate max-w-[140px]">
-                      {r.displayName} {r.uid === currentUserId && '(Tú)'}
+                      {r.displayName} {r.uid === currentUserId && `(${t('mp_you', language)})`}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-4 text-xs font-mono font-bold">
-                    <span>{r.totalStrokes} Golpes</span>
+                    <span>{r.totalStrokes} {t('strokes', language)}</span>
                     <span className={r.rpChange >= 0 ? 'text-emerald-400 font-black' : 'text-red-400'}>
                       {r.rpChange >= 0 ? `+${r.rpChange}` : r.rpChange} RP
                     </span>
@@ -204,7 +207,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
             onClick={handleExit}
             className="w-full bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-black py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all active:scale-98 cursor-pointer"
           >
-            <span>Continuar al Menú</span>
+            <span>{t('mp_continueToMenu', language)}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -240,12 +243,12 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
           <div className="flex items-center gap-1.5">
             <Flag className="w-4 h-4 text-amber-400" />
             <span className="font-black text-xs text-white">
-              Hoyo {room.currentHoleIndex + 1}/{room.holeCount}
+              {t('hole', language)} {room.currentHoleIndex + 1}/{room.holeCount}
             </span>
           </div>
           <div className="h-4 w-px bg-stone-700" />
           <span className="text-[10px] font-black uppercase text-amber-300/90 tracking-wider">
-            {room.mode === 'ranked_1v1' ? '⚔️ Duelo 1v1' : '🏌️ Online'}
+            {room.mode === 'ranked_1v1' ? `⚔️ ${t('mp_quickDuel', language)}` : `🏌️ ${t('tab_multiplayer', language)}`}
           </span>
         </div>
 
@@ -263,14 +266,14 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
                     <span className="text-[10px] font-black text-white truncate max-w-[80px]">
                       {p.displayName}
                     </span>
-                    {isMe && <span className="text-[8px] bg-emerald-500 text-black px-1 rounded font-black">TÚ</span>}
+                    {isMe && <span className="text-[8px] bg-emerald-500 text-black px-1 rounded font-black">{t('mp_you', language)}</span>}
                   </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-mono">
-                    <span className="text-amber-400 font-bold">{p.strokes || 0}g</span>
+                    <span className="text-amber-400 font-bold">{p.strokes || 0}</span>
                     <span className="text-stone-400">({p.totalStrokes || 0} tot)</span>
                     {p.hasFinishedHole && (
                       <span className="text-[8px] font-black text-emerald-400 bg-emerald-950/80 px-1 rounded">
-                        ✓ HOYO
+                        ✓ {t('hole', language).toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -285,7 +288,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
           type="button"
           onClick={handleExit}
           className="bg-[#271d17]/95 hover:bg-red-900/80 text-stone-300 hover:text-white border border-[#4d3d31] p-2 rounded-2xl shadow-lg transition-colors pointer-events-auto cursor-pointer"
-          title="Salir de la partida"
+          title={t('mp_leaveMatch', language)}
         >
           <LogOut className="w-4 h-4" />
         </button>
@@ -313,7 +316,7 @@ export const MultiplayerGameHUD: React.FC<MultiplayerGameHUDProps> = ({
           type="button"
           onClick={() => setShowEmotePicker(prev => !prev)}
           className="w-11 h-11 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center shadow-lg border-2 border-amber-300 transition-transform active:scale-95 cursor-pointer ml-auto"
-          title="Enviar Reacción Rápida"
+          title={t('mp_sendReaction', language)}
         >
           <Smile className="w-6 h-6" />
         </button>

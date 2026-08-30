@@ -14,9 +14,11 @@ import { AchievementsView } from './AchievementsView';
 import { ConsoleView } from './ConsoleView';
 import { OnlineMultiplayerView } from './OnlineMultiplayerView';
 import { RankLogo, RankBadge } from './RankBadges';
-import { getRankFromRP, getRankProgress, RANK_TIERS } from './RankData';
+import { getRankFromRP, getRankProgress, RANK_TIERS, getLocalizedRankTier } from './RankData';
 import { RanksModal } from './RanksModal';
 import { MultiplayerRoom } from '../services/multiplayerService';
+import { Language, SUPPORTED_LANGUAGES, t, saveLanguage } from '../utils/translations';
+import { Globe } from 'lucide-react';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -56,6 +58,8 @@ interface GameMenuProps {
   playerRP?: number;
   rankedWins?: number;
   rankedMatches?: number;
+  language?: Language;
+  onLanguageChange?: (lang: Language) => void;
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -96,6 +100,8 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   playerRP = 0,
   rankedWins = 0,
   rankedMatches = 0,
+  language = 'es',
+  onLanguageChange = () => {},
 }) => {
   const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'multiplayer' | 'ranks' | 'store' | 'leaderboard' | 'achievements' | 'how-to' | 'settings' | 'console'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
@@ -321,7 +327,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <Play className="w-4 h-4 shrink-0" />
-                <span>Play Lab</span>
+                <span>{t('tab_play', language)}</span>
               </button>
 
               <button
@@ -333,7 +339,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <Swords className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Modo Online</span>
+                <span>{t('tab_multiplayer', language)}</span>
                 <span className="ml-auto bg-amber-900 text-amber-300 text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
                   LIVE
                 </span>
@@ -350,7 +356,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 <div className="shrink-0 scale-90 -ml-1">
                   <RankLogo tier={currentRank.tier} size={20} />
                 </div>
-                <span>Rangos</span>
+                <span>{t('tab_ranks', language)}</span>
                 <span className="ml-auto text-[10px] font-mono font-black text-amber-600 bg-amber-100/80 px-1.5 py-0.5 rounded-md">
                   {playerRP} RP
                 </span>
@@ -365,7 +371,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <Award className="w-4 h-4 shrink-0" />
-                <span>Hole Directory</span>
+                <span>{t('tab_levels', language)}</span>
                 {playedCount > 0 && (
                   <span className="ml-auto bg-[#db5641] text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
                     {playedCount}/{activeLevels.length}
@@ -382,7 +388,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <ShoppingBag className="w-4 h-4 shrink-0" />
-                <span>Ball Store</span>
+                <span>{t('tab_store', language)}</span>
                 <span className="ml-auto bg-amber-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 shadow-sm">
                   🪙
                 </span>
@@ -397,7 +403,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <Trophy className="w-4 h-4 shrink-0" />
-                <span>Leaderboard</span>
+                <span>{t('tab_leaderboard', language)}</span>
               </button>
 
               <button
@@ -409,7 +415,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <Star className="w-4 h-4 shrink-0" />
-                <span>Achievements</span>
+                <span>{t('tab_achievements', language)}</span>
               </button>
 
               <button
@@ -421,7 +427,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <HelpCircle className="w-4 h-4 shrink-0" />
-                <span>How to Play</span>
+                <span>{t('tab_howToPlay', language)}</span>
               </button>
 
               <button
@@ -433,7 +439,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }`}
               >
                 <Settings className="w-4 h-4 shrink-0" />
-                <span>Caddy & HUD</span>
+                <span>{t('tab_settings', language)}</span>
               </button>
 
               {/* Console Tab - EXCLUSIVELY FOR MARTIN */}
@@ -1074,6 +1080,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 }}
                 onOpenRanksModal={() => setShowRanksModal(true)}
                 onBackToMenu={() => setActiveTab('play')}
+                language={language}
               />
             </div>
           )}
@@ -1086,21 +1093,21 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   <div className="flex items-center gap-2.5">
                     <button
                       onClick={() => setActiveTab('play')}
-                      className="w-8 h-8 rounded-xl bg-[#3d312a]/5 hover:bg-[#3d312a]/10 flex items-center justify-center text-[#3d312a]"
+                      className="w-8 h-8 rounded-xl bg-[#3d312a]/5 hover:bg-[#3d312a]/10 flex items-center justify-center text-[#3d312a] cursor-pointer"
                     >
                       <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                      <h2 className="text-xl font-black text-[#3d312a]">Sistema de Rangos Oficial</h2>
+                      <h2 className="text-xl font-black text-[#3d312a]">{t('ranks_title', language)}</h2>
                       <p className="text-xs text-[#7a7065] font-semibold">
-                        Gana partidas en el Modo Online 1v1 para acumular RP y ascender de rango
+                        {t('ranks_subtitle', language)}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 bg-amber-100 border border-amber-300 px-3 py-1.5 rounded-xl">
                     <RankLogo tier={currentRank.tier} size={24} />
                     <div>
-                      <span className="text-[10px] text-amber-800 font-bold block leading-none">Tu Rango</span>
+                      <span className="text-[10px] text-amber-800 font-bold block leading-none">{t('ranks_yourRank', language)}</span>
                       <span className="text-xs font-black text-amber-950 font-mono">{playerRP} RP</span>
                     </div>
                   </div>
@@ -1111,6 +1118,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   {RANK_TIERS.map((tier) => {
                     const isUnlocked = playerRP >= tier.minRP;
                     const isCurrent = currentRank.tier === tier.tier;
+                    const locTier = getLocalizedRankTier(tier, language);
 
                     return (
                       <div
@@ -1130,19 +1138,19 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-black text-[#3d312a] truncate">
-                                {tier.name}
+                                {locTier.name}
                               </span>
                               <span className="text-[10px] font-bold text-[#7a7065] bg-[#3d312a]/5 px-1.5 py-0.5 rounded">
-                                Rango {tier.tier}
+                                {t('tab_ranks', language)} {tier.tier}
                               </span>
                               {isCurrent && (
                                 <span className="bg-[#db5641] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                                  ACTUAL
+                                  {t('ranks_current', language)}
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-[#7a7065] font-semibold mt-0.5">
-                              {tier.elementDescription}
+                              {locTier.elementDescription}
                             </p>
                           </div>
                         </div>
@@ -1152,7 +1160,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                             {tier.maxRP === Infinity ? `${tier.minRP}+ RP` : `${tier.minRP} - ${tier.maxRP} RP`}
                           </span>
                           <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                            {tier.rewardPerWin}
+                            {locTier.rewardPerWin}
                           </span>
                         </div>
                       </div>
@@ -1167,7 +1175,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   className="flex-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3 px-4 rounded-xl font-black text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <Swords className="w-4 h-4" />
-                  <span>JUGAR MODO ONLINE (GANAR RP)</span>
+                  <span>{t('tab_multiplayer', language)} (RP)</span>
                 </button>
               </div>
             </div>
@@ -1178,7 +1186,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
             <div className="flex-1 flex flex-col justify-between animate-in fade-in duration-200">
               <div className="flex-1 overflow-visible">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-black text-[#3d312a]">Hole Directory</h2>
+                  <h2 className="text-xl font-black text-[#3d312a]">{t('levels_title', language)}</h2>
                   
                   {/* Rows level tabs groups */}
                   {currentWorld === 'classic' ? (
@@ -1263,7 +1271,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                                 {best === 1 ? 'HIO!' : getScoreTerm(best, lvl.par)}
                               </span>
                             ) : (
-                              <span className="opacity-40">Play</span>
+                              <span className="opacity-40">{t('play', language)}</span>
                             )}
                           </div>
                         </div>
@@ -1275,7 +1283,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
               <div className="pt-4 text-center">
                 <p className="text-xs text-[#7a7065] font-semibold flex items-center justify-center gap-1">
-                  💡 Select any cell box to instantly jump to that hole design!
+                  💡 {t('levels_quickJump', language)}
                 </p>
               </div>
             </div>
@@ -1296,11 +1304,12 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               onAddCoins={onAddCoins}
               onUnlockItems={onUnlockItems}
               user={user}
+              language={language}
             />
           )}
 
           {activeTab === 'leaderboard' && (
-            <LeaderboardView firebaseConfigured={firebaseConfigured} currentUserUid={user?.uid || null} />
+            <LeaderboardView firebaseConfigured={firebaseConfigured} currentUserUid={user?.uid || null} language={language} />
           )}
 
           {activeTab === 'achievements' && (
@@ -1308,6 +1317,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               bestScores={bestScores}
               coins={coins}
               unlockedBallIds={unlockedBallIds}
+              language={language}
             />
           )}
 
@@ -1391,13 +1401,68 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
           {/* TAB 4: SETTINGS & PREFERENCES */}
           {activeTab === 'settings' && (
-            <div className="flex-1 flex flex-col justify-between animate-in fade-in duration-200">
-              <div className="space-y-6">
+            <div className="flex-1 flex flex-col justify-between animate-in fade-in duration-200 overflow-y-auto pr-1">
+              <div className="space-y-5">
                 <h2 className="text-xl font-black text-[#3d312a] mb-2 flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-[#db5641]" /> Interface Preferences
+                  <Settings className="w-5 h-5 text-[#db5641]" /> {t('set_title', language)}
                 </h2>
 
                 <div className="space-y-4">
+                  {/* Language Selector Option */}
+                  <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#3d312a]/10 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 shrink-0 bg-blue-500/10 rounded-xl text-blue-600 flex items-center justify-center font-bold">
+                        <Globe className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-[#3d312a] text-sm flex items-center gap-2">
+                          {t('set_language', language)}
+                          <span className="text-[10px] bg-amber-500/15 text-amber-700 font-bold px-2 py-0.5 rounded-full uppercase">
+                            {SUPPORTED_LANGUAGES.find(l => l.code === language)?.name}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-[#7a7065] mt-0.5 leading-relaxed font-semibold">
+                          {t('set_language_desc', language)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Language selector grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 pt-1">
+                      {SUPPORTED_LANGUAGES.map((langItem) => {
+                        const isSelected = language === langItem.code;
+                        return (
+                          <button
+                            key={langItem.code}
+                            type="button"
+                            onClick={() => {
+                              onLanguageChange(langItem.code);
+                              saveLanguage(langItem.code);
+                            }}
+                            className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#3d312a] text-[#faf6ee] border-[#3d312a] shadow-sm scale-[1.02]'
+                                : 'bg-white hover:bg-[#efe6d4] text-[#3d312a] border-[#3d312a]/10'
+                            }`}
+                          >
+                            <span className="text-xl shrink-0">{langItem.flag}</span>
+                            <div className="min-w-0">
+                              <span className="block text-xs font-black truncate">{langItem.name}</span>
+                              <span className={`block text-[9px] uppercase tracking-wider font-semibold truncate ${
+                                isSelected ? 'text-amber-300' : 'text-[#7a7065]'
+                              }`}>
+                                {langItem.code.toUpperCase()}
+                              </span>
+                            </div>
+                            {isSelected && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 ml-auto shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* AI Caddy Toggle Option */}
                   <div className="bg-[#faf6ee] p-4 rounded-2xl border border-[#3d312a]/10 flex items-center justify-between gap-4">
                     <div className="flex gap-3 items-start">
@@ -1405,9 +1470,9 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                         <Bot className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-[#3d312a] text-sm">Real-time AI Caddy Insights</h4>
+                        <h4 className="font-extrabold text-[#3d312a] text-sm">{t('set_caddy', language)}</h4>
                         <p className="text-xs text-[#7a7065] mt-0.5 leading-relaxed font-semibold">
-                          Allows your customized caddy assistant to guide your course lines, commentate, and celebrate points.
+                          {t('set_caddy_desc', language)}
                         </p>
                       </div>
                     </div>
@@ -1433,21 +1498,21 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
                   {/* Level select accessibility info */}
                   <div className="bg-[#efe6d4]/40 border border-[#3d312a]/5 p-4 rounded-2xl">
-                    <h5 className="text-[#3d312a] font-extrabold text-xs mb-1.5">Accessibility Tip</h5>
+                    <h5 className="text-[#3d312a] font-extrabold text-xs mb-1.5">{t('set_accessibility_tip', language)}</h5>
                     <p className="text-[11px] text-[#7a7065] font-semibold leading-relaxed">
-                      You can navigate directly dynamically to any level inside GOLF LAB by clicking "Hole Directory" tab and selecting any of the 60 grid slots. No password or dev tools needed! Touch Assist panel toggles freely at any point on screen.
+                      {t('set_accessibility_desc', language)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-8">
+              <div className="pt-6">
                 <button
                   onClick={() => onStartGame(currentLevelIndex)}
-                  className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-4 px-6 rounded-2xl font-black text-sm shadow-md flex items-center justify-center gap-1 transition-all active:scale-95"
+                  className="w-full bg-[#db5641] hover:bg-[#c24a37] text-white py-4 px-6 rounded-2xl font-black text-sm shadow-md flex items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white" />
-                  <span>START TEEING OFF (HOLE {currentLevelIndex + 1})</span>
+                  <span>{t('menu_startHole', language)} {currentLevelIndex + 1}</span>
                 </button>
               </div>
             </div>
@@ -1483,6 +1548,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
         currentRP={playerRP}
         rankedWins={rankedWins}
         rankedMatches={rankedMatches}
+        language={language}
       />
     </div>
   );

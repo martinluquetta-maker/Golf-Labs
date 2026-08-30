@@ -2,14 +2,21 @@ import React, { useMemo } from 'react';
 import { Award, Star, Zap, CircleDashed, FastForward, CheckCircle2, Gift } from 'lucide-react';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { BALLS_STORE_ITEMS } from './BallStoreData';
+import { Language, t } from '../utils/translations';
 
 interface AchievementsViewProps {
   bestScores: Record<number, number>;
   coins: number;
   unlockedBallIds: string[];
+  language?: Language;
 }
 
-export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, coins, unlockedBallIds }) => {
+export const AchievementsView: React.FC<AchievementsViewProps> = ({ 
+  bestScores, 
+  coins, 
+  unlockedBallIds,
+  language = 'es'
+}) => {
   const achievements = useMemo(() => {
     // Calculate total lifetime coins by summing current coins + spent coins
     const spentCoins = unlockedBallIds.reduce((total, id) => {
@@ -40,16 +47,16 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
     const list = [
       {
         id: 'first_steps',
-        title: 'First Steps',
-        description: 'Complete your first hole',
+        title: t('ach_firstSteps_title', language),
+        description: t('ach_firstSteps_desc', language),
         icon: <FastForward className="w-6 h-6 text-emerald-500" />,
         unlocked: holesCompleted > 0,
         color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
       },
       {
         id: 'birdie_master',
-        title: 'Birdie Master',
-        description: 'Score 5 or more Birdies',
+        title: t('ach_birdieMaster_title', language),
+        description: t('ach_birdieMaster_desc', language),
         icon: <Star className="w-6 h-6 text-blue-500" />,
         unlocked: birdies + eagles + holesInOne >= 5, // Include better scores
         color: 'bg-blue-500/10 text-blue-600 border-blue-200',
@@ -57,8 +64,8 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
       },
       {
         id: 'eagle_eye',
-        title: 'Eagle Eye',
-        description: 'Score 3 or more Eagles',
+        title: t('ach_eagleEye_title', language),
+        description: t('ach_eagleEye_desc', language),
         icon: <Zap className="w-6 h-6 text-purple-500" />,
         unlocked: eagles + holesInOne >= 3,
         color: 'bg-purple-500/10 text-purple-600 border-purple-200',
@@ -66,8 +73,8 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
       },
       {
         id: 'ace_club',
-        title: 'Ace Club',
-        description: 'Get a Hole-in-One',
+        title: t('ach_aceClub_title', language),
+        description: t('ach_aceClub_desc', language),
         icon: <CheckCircle2 className="w-6 h-6 text-rose-500" />,
         unlocked: holesInOne > 0,
         color: 'bg-rose-500/10 text-rose-600 border-rose-200',
@@ -75,8 +82,8 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
       },
       {
         id: 'century_club',
-        title: 'Century Club',
-        description: 'Collect 100 total lifetime coins',
+        title: t('ach_centuryClub_title', language),
+        description: t('ach_centuryClub_desc', language),
         icon: <CircleDashed className="w-6 h-6 text-amber-500" />,
         unlocked: lifetimeCoins >= 100,
         color: 'bg-amber-500/10 text-amber-600 border-amber-200',
@@ -84,8 +91,8 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
       },
       {
         id: 'ball_collector',
-        title: 'Gear Head',
-        description: 'Unlock 3 or more custom golf balls',
+        title: t('ach_gearHead_title', language),
+        description: t('ach_gearHead_desc', language),
         icon: <Gift className="w-6 h-6 text-teal-500" />,
         unlocked: unlockedBallIds.length >= 3,
         color: 'bg-teal-500/10 text-teal-600 border-teal-200',
@@ -93,8 +100,8 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
       },
       {
         id: 'championship',
-        title: 'Tour Champion',
-        description: 'Complete all 60 holes',
+        title: t('ach_tourChampion_title', language),
+        description: t('ach_tourChampion_desc', language),
         icon: <Award className="w-6 h-6 text-indigo-500" />,
         unlocked: holesCompleted >= 60,
         color: 'bg-indigo-500/10 text-indigo-600 border-indigo-200',
@@ -103,17 +110,17 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
     ];
 
     return list;
-  }, [bestScores, coins, unlockedBallIds]);
+  }, [bestScores, coins, unlockedBallIds, language]);
 
   return (
     <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
       <div className="mb-6 lg:mb-10">
         <h2 className="text-2xl lg:text-3xl font-black text-[#3d312a] flex items-center gap-3">
           <Award className="text-rose-500 w-8 h-8 lg:w-10 lg:h-10" />
-          <span>Achievements</span>
+          <span>{t('ach_title', language)}</span>
         </h2>
         <p className="text-[#6b6257] font-medium mt-2 max-w-2xl leading-relaxed">
-          Unlock badges by sinking trick shots, completing holes, and collecting coins.
+          {t('ach_subtitle', language)}
         </p>
       </div>
 
@@ -147,7 +154,7 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
                 <div className={`ml-4 shrink-0 text-xs font-bold tracking-wider px-2 py-1 rounded-full ${
                   achievement.unlocked ? 'bg-[#3d312a] text-[#faf6ee]' : 'bg-black/10 text-black/50'
                 }`}>
-                  {achievement.unlocked ? 'UNLOCKED' : achievement.progress}
+                  {achievement.unlocked ? t('store_owned', language).toUpperCase() : achievement.progress}
                 </div>
               )}
             </div>
@@ -157,3 +164,4 @@ export const AchievementsView: React.FC<AchievementsViewProps> = ({ bestScores, 
     </div>
   );
 };
+

@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { RANKS_DATA, getRankFromRP, getRankProgress, RankTier } from './RankData';
+import { RANKS_DATA, getRankFromRP, getRankProgress, RankTier, getLocalizedRankTier } from './RankData';
 import { RankLogo, RankBadge } from './RankBadges';
+import { Language, t } from '../utils/translations';
 import { 
   Trophy, 
   Shield, 
@@ -25,13 +26,15 @@ interface RanksModalProps {
   onClose: () => void;
   currentRP: number;
   onPlayOnline?: () => void;
+  language?: Language;
 }
 
 export const RanksModal: React.FC<RanksModalProps> = ({
   isOpen,
   onClose,
   currentRP = 0,
-  onPlayOnline
+  onPlayOnline,
+  language = 'es'
 }) => {
   const [selectedRankTier, setSelectedRankTier] = useState<number>(() => {
     return getRankFromRP(currentRP).tier;
@@ -39,9 +42,11 @@ export const RanksModal: React.FC<RanksModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentRank = getRankFromRP(currentRP);
+  const rawCurrentRank = getRankFromRP(currentRP);
+  const currentRank = getLocalizedRankTier(rawCurrentRank, language);
   const progress = getRankProgress(currentRP);
-  const selectedRank = RANKS_DATA.find(r => r.tier === selectedRankTier) || currentRank;
+  const rawSelectedRank = RANKS_DATA.find(r => r.tier === selectedRankTier) || rawCurrentRank;
+  const selectedRank = getLocalizedRankTier(rawSelectedRank, language);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
@@ -58,11 +63,11 @@ export const RanksModal: React.FC<RanksModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                  Sistema Competitivo Oficial
+                  {t('ranks_title', language)}
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                Sistema de Rangos & Emblemas
+                {t('menu_view7Ranks', language)}
               </h2>
             </div>
           </div>
@@ -85,7 +90,7 @@ export const RanksModal: React.FC<RanksModalProps> = ({
               </div>
             </div>
             <div>
-              <span className="text-[11px] font-black uppercase text-amber-300/80">Tu Rango Actual</span>
+              <span className="text-[11px] font-black uppercase text-amber-300/80">{t('menu_yourRank', language)}</span>
               <h3 className="text-lg font-black text-white leading-tight">
                 {currentRank.name}
               </h3>
@@ -98,9 +103,9 @@ export const RanksModal: React.FC<RanksModalProps> = ({
           {/* RP Progress Bar */}
           <div className="w-full sm:w-80 bg-[#1c140f] p-3 rounded-2xl border border-[#4d3f35] space-y-1.5">
             <div className="flex justify-between items-center text-[11px] font-black">
-              <span className="text-stone-400">Progreso de Temporada</span>
+              <span className="text-stone-400">{t('ranks_currentProgress', language)}</span>
               <span className="text-amber-400 font-mono">
-                {progress.nextRank ? `${progress.percentage}%` : '¡Rango Máximo!'}
+                {progress.nextRank ? `${progress.percentage}%` : t('ranks_maxRankReached', language)}
               </span>
             </div>
             <div className="w-full h-3 bg-stone-900 rounded-full overflow-hidden p-0.5 border border-stone-700">
@@ -112,9 +117,9 @@ export const RanksModal: React.FC<RanksModalProps> = ({
             <div className="flex justify-between items-center text-[10px] text-stone-400 font-medium">
               <span>{currentRank.minRP} RP</span>
               {progress.nextRank ? (
-                <span>Faltan <strong className="text-amber-300">{progress.rpRequiredForNext} RP</strong> para {progress.nextRank.name}</span>
+                <span>{progress.rpRequiredForNext} RP {t('mp_of', language)} {getLocalizedRankTier(progress.nextRank, language).name}</span>
               ) : (
-                <span className="text-amber-300 font-bold">¡Corona de Campeón!</span>
+                <span className="text-amber-300 font-bold">★ {t('ranks_maxRankReached', language)}</span>
               )}
               <span>{progress.nextRank ? progress.nextRank.minRP : 'Max'} RP</span>
             </div>
@@ -126,11 +131,12 @@ export const RanksModal: React.FC<RanksModalProps> = ({
           {/* 7 Ranks List Column */}
           <div className="md:col-span-5 space-y-2">
             <span className="text-[11px] font-black uppercase tracking-wider text-stone-400 block px-1">
-              Tabla de los 7 Rangos
+              {t('menu_view7Ranks', language)}
             </span>
 
             <div className="space-y-2">
-              {RANKS_DATA.map((rank) => {
+              {RANKS_DATA.map((rawRank) => {
+                const rank = getLocalizedRankTier(rawRank, language);
                 const isCurrent = rank.tier === currentRank.tier;
                 const isSelected = rank.tier === selectedRank.tier;
                 const isUnlocked = currentRP >= rank.minRP;
@@ -151,7 +157,7 @@ export const RanksModal: React.FC<RanksModalProps> = ({
                         <RankLogo tier={rank.tier} size={42} showGlow={isSelected || rank.tier >= 6} />
                         {isCurrent && (
                           <span className="absolute -top-1 -left-1 bg-emerald-500 text-black text-[8px] font-black px-1.5 rounded-full border border-black animate-pulse">
-                            TÚ
+                            {t('lb_you', language)}
                           </span>
                         )}
                       </div>
@@ -178,11 +184,11 @@ export const RanksModal: React.FC<RanksModalProps> = ({
                       </span>
                       {isUnlocked ? (
                         <span className="text-[9px] font-black uppercase text-emerald-400 flex items-center gap-0.5 justify-end">
-                          <CheckCircle2 className="w-2.5 h-2.5" /> Desbloqueado
+                          <CheckCircle2 className="w-2.5 h-2.5" /> {t('store_owned', language)}
                         </span>
                       ) : (
                         <span className="text-[9px] font-bold text-stone-500">
-                          Bloqueado
+                          {t('store_locked', language)}
                         </span>
                       )}
                     </div>
@@ -214,7 +220,7 @@ export const RanksModal: React.FC<RanksModalProps> = ({
                       borderColor: '#ffffff33'
                     }}
                   >
-                    Rango {selectedRank.tier} • {selectedRank.name}
+                    {t('ranks_tier', language)} {selectedRank.tier} • {selectedRank.name}
                   </span>
                 </div>
 
@@ -230,7 +236,7 @@ export const RanksModal: React.FC<RanksModalProps> = ({
               {/* Logo Description & Lore */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between border-b border-[#4d3d31] pb-2">
-                  <span className="text-xs font-black uppercase text-stone-400">Elemento del Logo</span>
+                  <span className="text-xs font-black uppercase text-stone-400">{t('ranks_title', language)}</span>
                   <span className="text-xs font-black text-amber-300 bg-amber-950/60 border border-amber-800/60 px-2.5 py-0.5 rounded-lg">
                     {selectedRank.logoDescription}
                   </span>
@@ -244,19 +250,19 @@ export const RanksModal: React.FC<RanksModalProps> = ({
               {/* RP Range & Status */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-3 bg-[#1e1611] rounded-xl border border-[#423328]">
-                  <span className="text-[10px] font-black uppercase text-stone-400 block">Puntos Requeridos</span>
+                  <span className="text-[10px] font-black uppercase text-stone-400 block">{t('mp_playerRankedPoints', language)}</span>
                   <span className="font-mono font-black text-amber-400 text-sm">
                     {selectedRank.minRP} - {selectedRank.maxRP === 99999 ? '∞' : selectedRank.maxRP} RP
                   </span>
                 </div>
 
                 <div className="p-3 bg-[#1e1611] rounded-xl border border-[#423328]">
-                  <span className="text-[10px] font-black uppercase text-stone-400 block">Estado Actual</span>
+                  <span className="text-[10px] font-black uppercase text-stone-400 block">{t('menu_yourRank', language)}</span>
                   <span className="font-bold text-sm">
                     {currentRank.tier >= selectedRank.tier ? (
-                      <span className="text-emerald-400 font-black">✓ Rango Obtenido</span>
+                      <span className="text-emerald-400 font-black">✓ {t('store_owned', language)}</span>
                     ) : (
-                      <span className="text-stone-400">Faltan {selectedRank.minRP - currentRP} RP</span>
+                      <span className="text-stone-400">{selectedRank.minRP - currentRP} RP {t('mp_of', language)} {selectedRank.name}</span>
                     )}
                   </span>
                 </div>
@@ -265,7 +271,7 @@ export const RanksModal: React.FC<RanksModalProps> = ({
               {/* Perks / Benefits */}
               <div className="space-y-1.5">
                 <span className="text-[11px] font-black uppercase text-stone-400 flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-amber-400" /> Beneficios & Recompensas de Rango
+                  <Award className="w-3.5 h-3.5 text-amber-400" /> {t('ach_title', language)} & {selectedRank.rewardPerWin || '+30 RP / Win'}
                 </span>
                 <div className="space-y-1">
                   {selectedRank.perks.map((perk, idx) => (
@@ -289,7 +295,7 @@ export const RanksModal: React.FC<RanksModalProps> = ({
                 className="w-full bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-black py-3 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-500/20 transition-all active:scale-98 cursor-pointer"
               >
                 <Swords className="w-4 h-4" />
-                <span>Jugar Duelo Online & Subir RP</span>
+                <span>{t('ranks_playMultiplayer', language)}</span>
               </button>
             )}
           </div>
@@ -299,16 +305,17 @@ export const RanksModal: React.FC<RanksModalProps> = ({
         <div className="p-4 bg-[#1f1712] border-t border-[#4d3f35] flex items-center justify-between text-xs text-stone-400 flex-wrap gap-2 shrink-0">
           <div className="flex items-center gap-2">
             <Info className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Gana partidas online 1v1 o multijugador para acumular Ranked Points (RP) y coronarte en <strong>Hole in One</strong>.</span>
+            <span>{t('ranks_subtitle', language)}</span>
           </div>
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-[#3d312a] hover:bg-[#4d3e35] text-white rounded-xl font-bold text-xs cursor-pointer transition-colors"
           >
-            Cerrar
+            {t('acc_dismiss', language)}
           </button>
         </div>
       </div>
     </div>
   );
 };
+

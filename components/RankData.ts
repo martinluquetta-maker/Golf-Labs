@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Language, t } from '../utils/translations';
+
 export interface RankTier {
   tier: number; // 1 to 7
   id: string;
@@ -208,3 +210,20 @@ export function getRankProgress(rp: number = 0): {
     rpRequiredForNext: next.minRP - rp
   };
 }
+
+export function getLocalizedRankTier(tier: RankTier, lang: Language = 'es'): RankTier {
+  const nameKey = `rank_${tier.id}_name` as any;
+  const descKey = `rank_${tier.id}_desc` as any;
+  const logoKey = `rank_${tier.id}_logo` as any;
+  const winRewardText = t('ranks_winReward', lang);
+
+  return {
+    ...tier,
+    name: t(nameKey, lang, tier.name),
+    subtitle: `${t('ranks_tier', lang)} ${tier.tier}`,
+    description: t(descKey, lang, tier.description),
+    logoDescription: t(logoKey, lang, tier.logoDescription),
+    rewardPerWin: tier.rewardPerWin ? `${tier.rewardPerWin.split(' ')[0]} RP ${winRewardText}` : undefined
+  };
+}
+

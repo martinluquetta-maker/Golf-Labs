@@ -4,6 +4,8 @@
 */
 
 
+import { Language } from './utils/translations';
+
 export interface Vector2 {
   x: number;
   y: number;
@@ -77,6 +79,7 @@ export interface GameState {
   rp?: number;
   rankedWins?: number;
   rankedMatches?: number;
+  language?: Language;
 }
 
 // ========================================

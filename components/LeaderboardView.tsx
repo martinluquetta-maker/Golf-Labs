@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Medal, User, Loader2 } from 'lucide-react';
 import { getLeaderboard } from '../services/firebase';
+import { Language, t } from '../utils/translations';
 
 interface LeaderboardViewProps {
   firebaseConfigured: boolean;
   currentUserUid: string | null;
+  language?: Language;
 }
 
-export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfigured, currentUserUid }) => {
+export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ 
+  firebaseConfigured, 
+  currentUserUid,
+  language = 'es'
+}) => {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,10 +39,9 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfig
     return (
       <div className="flex flex-col items-center justify-center p-8 bg-[#3d312a]/5 rounded-3xl border border-[#3d312a]/10 max-w-md mx-auto mt-8 text-center">
         <Trophy className="w-12 h-12 text-[#3d312a]/30 mb-4" />
-        <h3 className="text-lg font-bold text-[#3d312a] mb-2">Cloud Sandbox Restricted</h3>
+        <h3 className="text-lg font-bold text-[#3d312a] mb-2">{t('acc_cloudOffline', language)}</h3>
         <p className="text-sm text-[#7a7065] font-medium leading-relaxed">
-          Google Login and Global Leaderboard are not available in this environment. 
-          Please configure your own Firebase project in `firebase-applet-config.json` to enable cloud features.
+          {t('acc_cloudOfflineNotice', language)}
         </p>
       </div>
     );
@@ -47,10 +52,10 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfig
       <div className="mb-6 lg:mb-10">
         <h2 className="text-2xl lg:text-3xl font-black text-[#3d312a] flex items-center gap-3">
           <Trophy className="text-amber-500 w-8 h-8 lg:w-10 lg:h-10" />
-          <span>Global Leaderboard</span>
+          <span>{t('lb_title', language)}</span>
         </h2>
         <p className="text-[#6b6257] font-medium mt-2 max-w-2xl leading-relaxed">
-          Rankings are based on <strong className="text-[#3d312a]">Total Points</strong> earned from strokes beneath par on completed holes.
+          {t('lb_subtitle', language)}
         </p>
       </div>
 
@@ -58,12 +63,12 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfig
         {loading ? (
           <div className="flex-1 flex flex-col items-center justify-center">
             <Loader2 className="w-8 h-8 text-[#3d312a]/30 animate-spin mb-4" />
-            <p className="text-[#7a7065] font-semibold">Loading rankings...</p>
+            <p className="text-[#7a7065] font-semibold">{t('lb_loading', language)}</p>
           </div>
         ) : leaderboard.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <Trophy className="w-12 h-12 text-[#3d312a]/10 mb-4" />
-            <p className="text-[#7a7065] font-semibold">No rankings available yet.</p>
+            <p className="text-[#7a7065] font-semibold">{t('lb_empty', language)}</p>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
@@ -96,11 +101,11 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfig
                   
                   <div className="ml-3 sm:ml-4 flex-1 min-w-0">
                     <h4 className={`font-bold truncate ${isCurrentUser ? 'text-white' : 'text-[#3d312a]'}`}>
-                      {isCurrentUser ? 'You' : `Player ${player.id.substring(0, 4)}...`}
+                      {isCurrentUser ? t('lb_you', language) : `Player ${player.id.substring(0, 4)}...`}
                     </h4>
                     <div className={`flex flex-wrap gap-2 text-xs font-semibold mt-1 ${isCurrentUser ? 'text-[#e2d8ce]' : 'text-[#7a7065]'}`}>
-                      <span className="bg-black/10 px-2 py-0.5 rounded-full">{holesCompleted}/60 Holes</span>
-                      <span className="bg-black/10 px-2 py-0.5 rounded-full">{totalStrokes} Strokes</span>
+                      <span className="bg-black/10 px-2 py-0.5 rounded-full">{holesCompleted}/60 {t('lb_holesDone', language)}</span>
+                      <span className="bg-black/10 px-2 py-0.5 rounded-full">{totalStrokes} {t('hud_strokes', language)}</span>
                     </div>
                   </div>
                   
@@ -109,7 +114,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfig
                       {points.toLocaleString()}
                     </div>
                     <div className={`text-[10px] font-bold uppercase tracking-wider ${isCurrentUser ? 'text-[#e2d8ce]/60' : 'text-[#3d312a]/40'}`}>
-                      Points
+                      {t('lb_points', language)}
                     </div>
                   </div>
                 </div>
@@ -121,3 +126,4 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({ firebaseConfig
     </div>
   );
 };
+

@@ -45,8 +45,10 @@ import {
 } from './services/multiplayerService';
 import { MultiplayerGameHUD } from './components/MultiplayerGameHUD';
 import { getRankFromRP } from './components/RankData';
+import { Language, getSavedLanguage, saveLanguage, t } from './utils/translations';
 
 const App: React.FC = () => {
+  const [language, setLanguage] = useState<Language>(() => getSavedLanguage());
   const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<MultiplayerRoom | null>(null);
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
@@ -889,12 +891,12 @@ const App: React.FC = () => {
             <div className="absolute bottom-[200px] lg:bottom-[120px] left-1/2 -translate-x-1/2 z-40 w-full max-w-md select-none px-4">
             <div className="bg-[#faf6ee] border border-[#3d312a]/15 p-4 rounded-3xl shadow-xl flex items-center gap-4 relative pointer-events-auto">
                 <div className="flex flex-col text-center justify-center items-center gap-1.5 mx-auto pr-6">
-                    <span className="text-sm text-[#7a7065] font-medium uppercase tracking-wider">Caddy analysis</span>
+                    <span className="text-sm text-[#7a7065] font-medium uppercase tracking-wider">{t('settings_aiCaddy', language)}</span>
                     {gameState.commentaryLoading ? (
                       <Loader2 className="animate-spin text-[#3d312a] w-5 h-5 mt-1" />
                     ) : (
                       <p className="text-base font-medium text-[#3d312a] text-pretty">
-                        "{gameState.lastCommentary || "Line up your shot..."}"
+                        "{gameState.lastCommentary || "..."}"
                       </p>
                     )}
                 </div>
@@ -920,10 +922,10 @@ const App: React.FC = () => {
         return (
             <div className="fixed inset-0 bg-[#3d312a]/50 flex items-center justify-center z-50 backdrop-blur-md p-[55px]">
                 <div className="text-[#3d312a] px-[30px] lg:px-10 py-10 lg:py-[50px] rounded-3xl text-center w-full rainbow-border animate-rotate-gradient animate-in fade-in zoom-in duration-200 flex flex-col items-center min-w-xs max-w-md shadow-2xl">
-                    <h2 className="text-[38px] lg:text-[44px] font-bold mb-4 leading-none tracking-tight text-[#3d312a]">Nice shot</h2>
+                    <h2 className="text-[38px] lg:text-[44px] font-bold mb-4 leading-none tracking-tight text-[#3d312a]">¡Hoyo Completado!</h2>
                     
                     <div className="flex flex-col items-center mb-6">
-                        <p className="text-lg tracking-tight font-bold leading-none flex gap-1.5 text-[#3d312a]">{gameState.strokes} {gameState.strokes !== 1 ? "Strokes" : "Stroke"}
+                        <p className="text-lg tracking-tight font-bold leading-none flex gap-1.5 text-[#3d312a]">{gameState.strokes} {t('strokes', language)}
                         {scoreInfo && (
                             <><span className="opacity-50">—</span><span className="text-[#db5641] font-semibold">{scoreInfo.term}</span></>
                         )}
@@ -934,15 +936,15 @@ const App: React.FC = () => {
                     <div className="bg-[#6ca750]/10 border border-[#6ca750]/35 rounded-2xl py-3 px-5 mb-6 flex items-center justify-center gap-2.5 animate-pulse select-none">
                       <span className="text-xl animate-bounce" style={{ animationDuration: '2s' }}>🪙</span>
                       <div className="text-left leading-none">
-                        <span className="text-[9px] text-[#7a7065] font-extrabold uppercase tracking-wider block">Coins Reward Gained</span>
-                        <span className="text-[15px] font-black text-[#6ca750] block mt-0.5">+{calculateCoinsEarned(gameState.strokes, currentLevel.par)} Gold Coins</span>
+                        <span className="text-[9px] text-[#7a7065] font-extrabold uppercase tracking-wider block">{t('store_currency', language)}</span>
+                        <span className="text-[15px] font-black text-[#6ca750] block mt-0.5">+{calculateCoinsEarned(gameState.strokes, currentLevel.par)} {t('store_goldCoins', language)}</span>
                       </div>
                     </div>
 
                     
                     {aiCaddyEnabled && (
                         <div className="bg-[#f0ebe0] p-5 rounded-2xl mb-8 gap-2 flex flex-col justify-center w-full min-h-[90px] border border-[#3d312a]/10">
-                            <p className="text-sm text-[#7a7065] tracking-wider font-semibold uppercase">Caddy message</p>
+                            <p className="text-sm text-[#7a7065] tracking-wider font-semibold uppercase">{t('settings_aiCaddy', language)}</p>
                             {gameState.commentaryLoading ? (
                             <div className="flex justify-center py-2">
                                 <Loader2 className="animate-spin text-[#3d312a]" />
@@ -962,7 +964,7 @@ const App: React.FC = () => {
                           {nextLevelLoading ? (
                                <Loader2 className="animate-spin text-white" />
                           ) : (
-                              isFinal ? <>View results</> : <>Next hole</>
+                              isFinal ? <>{t('leaderboard_title', language)}</> : <>{t('menu_startHole', language)}</>
                           )}
                       </button>
                     </div>
@@ -973,21 +975,21 @@ const App: React.FC = () => {
 
     if (gameState.state === 'GAME_OVER') {
         const parDiff = gameState.totalScore - totalPar;
-        const scoreText = parDiff === 0 ? "Even Par" : (parDiff > 0 ? `${parDiff} Over Par` : `${Math.abs(parDiff)} Under Par`);
+        const scoreText = parDiff === 0 ? t('menu_evenPar', language) : (parDiff > 0 ? `+${parDiff}` : `${parDiff}`);
         
         return (
           <div className="fixed inset-0 bg-[#3d312a]/50 flex items-center justify-center z-50 backdrop-blur-md p-[55px]">
             <div className="text-[#3d312a] px-[30px] lg:px-10 py-10 lg:py-[50px] rounded-3xl text-center w-full rainbow-border animate-rotate-gradient animate-in fade-in zoom-in duration-200 flex flex-col items-center min-w-xs max-w-md shadow-2xl">
-                <h2 className="text-[38px] lg:text-[44px] font-bold mb-4 leading-none tracking-tight text-[#3d312a]">Course Complete</h2>
+                <h2 className="text-[38px] lg:text-[44px] font-bold mb-4 leading-none tracking-tight text-[#3d312a]">{t('menu_completed', language)}</h2>
                 
                 <div className="flex flex-col items-center mb-6">
                     <p className="text-xl tracking-tight font-extrabold leading-none mb-2 text-[#db5641]">{scoreText}</p>
-                    <p className="text-base text-[#7a7065] font-semibold">Total Strokes: {gameState.totalScore} (Par {totalPar})</p>
+                    <p className="text-base text-[#7a7065] font-semibold">{t('menu_totalScore', language)}: {gameState.totalScore} ({t('menu_par', language)} {totalPar})</p>
                 </div>
                 
                 {aiCaddyEnabled && (
                     <div className="bg-[#f0ebe0] p-5 rounded-2xl mb-8 gap-2 flex flex-col justify-center w-full min-h-[90px] border border-[#3d312a]/10">
-                        <p className="text-sm text-[#7a7065] tracking-wider font-semibold uppercase">Final analysis</p>
+                        <p className="text-sm text-[#7a7065] tracking-wider font-semibold uppercase">{t('settings_aiCaddy', language)}</p>
                         {gameState.commentaryLoading ? (
                             <div className="flex justify-center py-2">
                                 <Loader2 className="animate-spin text-[#3d312a]" />
@@ -1003,7 +1005,7 @@ const App: React.FC = () => {
                       onClick={resetGame}
                       className="w-full bg-[#3d312a] text-[#faf6ee] hover:opacity-90 leading-none py-[18px] px-[26px] min-w-[175px] lg:min-w-[206px] rounded-full font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-md"
                   >
-                      Play again
+                      {t('menu_startTeeingOff', language)}
                   </button>
                 </div>
             </div>
@@ -1160,6 +1162,7 @@ const App: React.FC = () => {
               rankedMatches: (prev.rankedMatches || 0) + 1
             }));
           }}
+          language={language}
         />
       )}
 
@@ -1264,6 +1267,11 @@ const App: React.FC = () => {
           authError={authError}
           onClearAuthError={() => setAuthError(null)}
           onUnlockAllLevels={handleUnlockAllLevels}
+          language={language}
+          onLanguageChange={(newLang) => {
+            setLanguage(newLang);
+            saveLanguage(newLang);
+          }}
         />
       )}
 
@@ -1275,6 +1283,7 @@ const App: React.FC = () => {
         par={currentLevel.par}
         numLevels={activeLevels.length}
         mulligan={mulligan}
+        language={language}
       />
     </div>
     </>

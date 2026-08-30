@@ -8,26 +8,28 @@ import ScorePill from "./builds/ScorePill";
 import { IconGolf, IconReset } from "./Icons";
 import { GameState } from '../types';
 import { Flame } from 'lucide-react';
+import { Language, t } from '../utils/translations';
 
 interface FooterProps {
   gameState: GameState;
   par: number;
   numLevels: number;
   mulligan: () => void;
+  language?: Language;
 }
 
-const Footer: React.FC<FooterProps> = ({ gameState, par, numLevels, mulligan }) => {
+const Footer: React.FC<FooterProps> = ({ gameState, par, numLevels, mulligan, language = 'es' }) => {
   return (
     <ScorePill>
       <div className="flex items-center gap-[4.5px] justify-center">
         <IconGolf size={20} />
-        <span className="text-[16px] md:text-[18px]">Hole {gameState.currentLevelIndex + 1}/{numLevels}</span>
+        <span className="text-[16px] md:text-[18px]">{t('menu_hole', language)} {gameState.currentLevelIndex + 1}/{numLevels}</span>
       </div>
       <div className="flex items-center gap-[4.5px] justify-center">
-        <span className="text-[16px] md:text-[18px]">{par} Par</span>
+        <span className="text-[16px] md:text-[18px]">{t('menu_par', language)} {par}</span>
       </div>
       <div className="flex items-center gap-[4.5px] justify-center">
-        <span className="text-[16px] md:text-[18px]">{gameState.strokes} {gameState.strokes !== 1 ? "Strokes" : "Stroke"}</span>
+        <span className="text-[16px] md:text-[18px]">{gameState.strokes} {t('strokes', language)}</span>
       </div>
       {gameState.holeInOneStreak !== undefined && gameState.holeInOneStreak > 0 && (
         <div className="flex items-center gap-[4.5px] justify-center text-[#db5641] font-extrabold flex-shrink-0">
