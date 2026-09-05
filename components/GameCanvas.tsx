@@ -45,6 +45,7 @@ import { PORTRAIT_SCALE_OVERRIDES } from '../levels';
 import { BALLS_STORE_ITEMS, TRAILS_STORE_ITEMS, TrailItem } from './BallStoreData';
 import { MultiplayerPlayer } from '../services/multiplayerService';
 import { getRankFromRP } from './RankData';
+import { Activity, Gauge, Zap, CheckCircle2 } from 'lucide-react';
 
 interface BoostTile extends Vector2 {
   dx: number;
@@ -148,12 +149,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const shockwavesRef = useRef<Array<{ x: number; y: number; r: number; maxR: number; color: string; alpha: number }>>([]);
   const confettiParticlesRef = useRef<ConfettiParticle[]>([]);
   const trailParticlesRef = useRef<TrailParticle[]>([]);
+
+  // Real-time Shot Distance & Velocity Tracking Refs
+  const shotDistanceAccumRef = useRef<number>(0);
+  const lastFrameBallPosRef = useRef<Vector2 | null>(null);
+  const isTrackingShotRef = useRef<boolean>(false);
+  const fadeDistanceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isAiming, setIsAiming] = useState(false);
   const [dragStart, setDragStart] = useState<Vector2 | null>(null);
   const [dragCurrent, setDragCurrent] = useState<Vector2 | null>(null);
   const { playForeground } = useAudio();
+
+  // Real-time Shot Distance UI State
+  const [liveDistance, setLiveDistance] = useState<number>(0);
+  const [liveVelocity, setLiveVelocity] = useState<number>(0);
+  const [isDistanceVisible, setIsDistanceVisible] = useState<boolean>(false);
+  const [isShotFinished, setIsShotFinished] = useState<boolean>(false);
 
   // Mobile / Touch controls state variables
   const [touchControlsEnabled, setTouchControlsEnabled] = useState(false);
@@ -476,6 +489,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const power = Math.sqrt(dx*dx + dy*dy) * POWER_MULTIPLIER;
     
     if (power > 1) { 
+        startShotTracking();
         const angle = Math.atan2(dy, dx);
         const cappedPower = Math.min(power, MAX_POWER);
         ballRef.current.vel.x = Math.cos(angle) * cappedPower;
@@ -488,6 +502,23 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     setDragStart(null);
     setDragCurrent(null);
   }, [isAiming, dragStart, dragCurrent, onStroke]);
+
+  const startShotTracking = useCallback(() => {
+    if (fadeDistanceTimeoutRef.current) {
+      clearTimeout(fadeDistanceTimeoutRef.current);
+      fadeDistanceTimeoutRef.current = null;
+    }
+    const b = ballRef.current;
+    if (b) {
+      lastFrameBallPosRef.current = { x: b.pos.x, y: b.pos.y };
+    }
+    shotDistanceAccumRef.current = 0;
+    isTrackingShotRef.current = true;
+    setLiveDistance(0);
+    setLiveVelocity(0);
+    setIsShotFinished(false);
+    setIsDistanceVisible(true);
+  }, []);
 
   // Touch Controller Helpers
   const adjustAngle = (deltaInRadians: number) => {
@@ -526,6 +557,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const power = Math.sqrt(dx*dx + dy*dy) * POWER_MULTIPLIER;
 
     if (power > 1) {
+        startShotTracking();
         const cappedPower = Math.min(power, MAX_POWER);
         b.vel.x = Math.cos(touchAngle) * cappedPower;
         b.vel.y = Math.sin(touchAngle) * cappedPower;
@@ -596,6 +628,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const b = ballRef.current;
     if (!b || b.sunk) return;
+
+    const frameStartPosX = b.pos.x;
+    const frameStartPosY = b.pos.y;
 
     if (portalCooldownRef.current > 0) {
       portalCooldownRef.current--;
@@ -1094,6 +1129,43 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         p.alpha = Math.max(0, 1 - (p.life / p.maxLife));
     });
     trailParticlesRef.current = trailParticlesRef.current.filter(p => p.life < p.maxLife);
+
+    // Track real-time distance and swing strength while ball is in motion
+    if (b) {
+      if (b.isMoving) {
+        if (!isTrackingShotRef.current) {
+          isTrackingShotRef.current = true;
+          setIsDistanceVisible(true);
+          setIsShotFinished(false);
+        }
+        const frameDx = b.pos.x - frameStartPosX;
+        const frameDy = b.pos.y - frameStartPosY;
+        const frameDist = Math.hypot(frameDx, frameDy);
+        if (frameDist < 40 && b.teleportTimer === 0) {
+          shotDistanceAccumRef.current += frameDist;
+        }
+        const meters = shotDistanceAccumRef.current / TILE_SIZE;
+        const currentSpeed = Math.hypot(b.vel.x, b.vel.y);
+        const speedMps = (currentSpeed / TILE_SIZE) * 20;
+
+        setLiveDistance(meters);
+        setLiveVelocity(speedMps);
+      } else if (isTrackingShotRef.current) {
+        isTrackingShotRef.current = false;
+        setIsShotFinished(true);
+        const finalMeters = shotDistanceAccumRef.current / TILE_SIZE;
+        setLiveDistance(finalMeters);
+        setLiveVelocity(0);
+
+        if (fadeDistanceTimeoutRef.current) {
+          clearTimeout(fadeDistanceTimeoutRef.current);
+        }
+        fadeDistanceTimeoutRef.current = setTimeout(() => {
+          setIsDistanceVisible(false);
+          setIsShotFinished(false);
+        }, 3500);
+      }
+    }
 
     // Sync isBallMoving React state at physics boundary triggers
     if (b) {
@@ -2279,6 +2351,76 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       >
         <span className="text-sm">🎮</span> {touchControlsEnabled ? 'Touch Assist: ON' : 'Touch Assist: OFF'}
       </button>
+
+      {/* Real-time Shot Distance & Swing Strength Telemetry Pill (Top-Center) */}
+      {isDistanceVisible && (
+        <div 
+          className="absolute top-4 left-1/2 -translate-x-1/2 z-40 select-none pointer-events-none animate-in fade-in zoom-in-95 duration-200"
+          style={{ maxWidth: 'calc(100% - 220px)' }}
+        >
+          <div className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-2xl shadow-xl backdrop-blur-md border flex items-center gap-2.5 sm:gap-3 transition-all duration-300 ${
+            isBallMoving 
+              ? 'bg-[#1b2330]/92 border-amber-400/40 text-[#faf6ee] ring-2 ring-amber-400/25 shadow-amber-950/40 scale-105' 
+              : 'bg-[#faf6ee]/95 border-[#3d312a]/15 text-[#3d312a]'
+          }`}>
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center font-black shrink-0 transition-colors ${
+              isBallMoving ? 'bg-amber-500/20 text-amber-300 animate-pulse' : 'bg-[#6ca750]/20 text-[#6ca750]'
+            }`}>
+              {isBallMoving ? (
+                <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-bounce" style={{ animationDuration: '1.2s' }} />
+              ) : (
+                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#6ca750]" />
+              )}
+            </div>
+
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 leading-none mb-0.5">
+                <span className={`text-[9px] sm:text-[10px] uppercase font-extrabold tracking-wider truncate ${
+                  isBallMoving ? 'text-amber-300/90' : 'text-[#7a7065]'
+                }`}>
+                  {isBallMoving ? 'Shot Distance' : 'Shot Distance'}
+                </span>
+                {isBallMoving && (
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex items-baseline gap-1 leading-none">
+                <span className={`text-lg sm:text-2xl font-black font-mono tracking-tight ${
+                  isBallMoving ? 'text-white drop-shadow-sm' : 'text-[#3d312a]'
+                }`}>
+                  {liveDistance.toFixed(2)}
+                </span>
+                <span className={`text-[10px] sm:text-xs font-black uppercase ${
+                  isBallMoving ? 'text-amber-400' : 'text-[#7a7065]'
+                }`}>
+                  m
+                </span>
+              </div>
+            </div>
+
+            {/* Swing Velocity & Power Feedback Bar */}
+            {isBallMoving && liveVelocity > 0.1 && (
+              <div className="border-l border-white/15 pl-2.5 sm:pl-3 hidden md:flex flex-col gap-1 items-start shrink-0">
+                <div className="flex items-center gap-1 text-[9px] uppercase font-bold text-stone-300 leading-none">
+                  <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+                  <span>{liveVelocity.toFixed(1)} m/s</span>
+                </div>
+                {/* Dynamic mini power bar */}
+                <div className="w-12 sm:w-14 h-1.5 bg-black/40 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 transition-all duration-75"
+                    style={{ width: `${Math.min(100, (liveVelocity / 14) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Floating Touch Controls HUD Dashboard (Bottom) */}
       {touchControlsEnabled && (
