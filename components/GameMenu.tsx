@@ -19,6 +19,7 @@ import { RanksModal } from './RanksModal';
 import { MultiplayerRoom } from '../services/multiplayerService';
 import { Language, SUPPORTED_LANGUAGES, t, saveLanguage } from '../utils/translations';
 import { Globe } from 'lucide-react';
+import { SecretSoundModal } from './SecretSoundModal';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -107,6 +108,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
   const [showRanksModal, setShowRanksModal] = useState(false);
+  const [showSecretSoundModal, setShowSecretSoundModal] = useState(false);
 
   const currentRank = getRankFromRP(playerRP);
   const rankProg = getRankProgress(playerRP);
@@ -1401,11 +1403,24 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
           {/* TAB 4: SETTINGS & PREFERENCES */}
           {activeTab === 'settings' && (
-            <div className="flex-1 flex flex-col justify-between animate-in fade-in duration-200 overflow-y-auto pr-1">
+            <div className="flex-1 flex flex-col justify-between animate-in fade-in duration-200 overflow-y-auto pr-1 relative">
               <div className="space-y-5">
-                <h2 className="text-xl font-black text-[#3d312a] mb-2 flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-[#db5641]" /> {t('set_title', language)}
-                </h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xl font-black text-[#3d312a] flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-[#db5641]" /> {t('set_title', language)}
+                  </h2>
+
+                  {/* Secret Easter Egg Corner Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowSecretSoundModal(true)}
+                    title="Rincón Secreto 🔊"
+                    className="p-1.5 text-[#3d312a]/30 hover:text-amber-500 hover:bg-amber-500/15 rounded-xl transition-all cursor-pointer group flex items-center gap-1 text-[11px] font-bold"
+                  >
+                    <Sparkles className="w-4 h-4 group-hover:scale-125 transition-transform text-amber-500/70 group-hover:text-amber-500" />
+                    <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-amber-700 hidden sm:inline">¿?</span>
+                  </button>
+                </div>
 
                 <div className="space-y-4">
                   {/* Language Selector Option */}
@@ -1548,6 +1563,13 @@ export const GameMenu: React.FC<GameMenuProps> = ({
         currentRP={playerRP}
         rankedWins={rankedWins}
         rankedMatches={rankedMatches}
+        language={language}
+      />
+
+      {/* Secret Audio Easter Egg Modal */}
+      <SecretSoundModal
+        isOpen={showSecretSoundModal}
+        onClose={() => setShowSecretSoundModal(false)}
         language={language}
       />
     </div>
