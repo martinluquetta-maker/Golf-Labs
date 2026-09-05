@@ -52,20 +52,22 @@ const App: React.FC = () => {
   const [activeMultiplayerRoom, setActiveMultiplayerRoom] = useState<MultiplayerRoom | null>(null);
   const [gameState, setGameState] = useState<GameState>(() => {
     try {
-      // Look for ball and trail purchases in long-term offline storage
+      // Look for ball and trail purchases in tab session first, then fallback to local
       let unlockedBallIds = ['classic_white'];
       let equippedBallId = 'classic_white';
       let unlockedTrailIds = ['trail_dust_white'];
       let equippedTrailId = 'trail_dust_white';
       
-      const savedBalls = window.localStorage.getItem('golf_lab_balls');
+      const sessionBalls = sessionStorage.getItem('golf_lab_balls');
+      const savedBalls = sessionBalls || window.localStorage.getItem('golf_lab_balls');
       if (savedBalls) {
         const parsedBalls = JSON.parse(savedBalls);
         if (parsedBalls.unlockedBallIds) unlockedBallIds = parsedBalls.unlockedBallIds;
         if (parsedBalls.equippedBallId) equippedBallId = parsedBalls.equippedBallId;
       }
 
-      const savedTrails = window.localStorage.getItem('golf_lab_trails');
+      const sessionTrails = sessionStorage.getItem('golf_lab_trails');
+      const savedTrails = sessionTrails || window.localStorage.getItem('golf_lab_trails');
       if (savedTrails) {
         const parsedTrails = JSON.parse(savedTrails);
         if (parsedTrails.unlockedTrailIds) unlockedTrailIds = parsedTrails.unlockedTrailIds;
@@ -565,6 +567,8 @@ const App: React.FC = () => {
         equippedBallId: 'classic_white',
       });
       sessionStorage.removeItem('golf_lab_state');
+      sessionStorage.removeItem('golf_lab_balls');
+      sessionStorage.removeItem('golf_lab_trails');
     } catch (err) {
       console.error("Authentication logout flow error:", err);
     }
@@ -585,14 +589,14 @@ const App: React.FC = () => {
         holeInOneStreak: gameState.holeInOneStreak ?? 0,
       }));
       
-      // Save purchased and equipped balls to long-term local storage so skins persist across devices/refreshes
-      window.localStorage.setItem('golf_lab_balls', JSON.stringify({
+      // Save purchased and equipped balls to tab session
+      sessionStorage.setItem('golf_lab_balls', JSON.stringify({
         unlockedBallIds: gameState.unlockedBallIds ?? ['classic_white'],
         equippedBallId: gameState.equippedBallId ?? 'classic_white',
       }));
 
-      // Save purchased and equipped trails to long-term storage
-      window.localStorage.setItem('golf_lab_trails', JSON.stringify({
+      // Save purchased and equipped trails to tab session
+      sessionStorage.setItem('golf_lab_trails', JSON.stringify({
         unlockedTrailIds: gameState.unlockedTrailIds ?? ['trail_dust_white'],
         equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
       }));

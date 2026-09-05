@@ -7,7 +7,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  setPersistence,
+  browserSessionPersistence
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import config from '../firebase-applet-config.json';
@@ -68,6 +70,14 @@ export async function getFirebaseServices() {
 
     dbInstance = getFirestore(appInstance, config.firestoreDatabaseId);
     authInstance = getAuth(appInstance);
+    
+    // Configure session-only persistence so tabs act independently without forced auth synchronization
+    try {
+      await setPersistence(authInstance, browserSessionPersistence);
+    } catch (persistErr) {
+      console.warn("Session persistence note:", persistErr);
+    }
+
     googleProviderInstance = new GoogleAuthProvider();
     firebaseConfigured = true;
 

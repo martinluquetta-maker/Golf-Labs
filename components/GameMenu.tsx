@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft, ExternalLink } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
@@ -200,7 +200,20 @@ export const GameMenu: React.FC<GameMenuProps> = ({
       setAuthEmail('');
       setAuthDisplayName('');
     } catch (err: any) {
-      setAuthFormError(err?.message || "Authentication failed. Please verify your credentials.");
+      let friendlyMessage = err?.message || "Authentication failed. Please verify your credentials.";
+      const errCode = err?.code || '';
+      if (errCode === 'auth/operation-not-allowed' || friendlyMessage.includes('operation-not-allowed')) {
+        friendlyMessage = "Email/Password provider is currently disabled in your Firebase project. You can enable it in the Firebase Console under Authentication > Sign-in method, or sign in directly with Google.";
+      } else if (errCode === 'auth/email-already-in-use' || friendlyMessage.includes('email-already-in-use')) {
+        friendlyMessage = "An account already exists with this email address. Please switch to Sign In or use Google.";
+      } else if (errCode === 'auth/invalid-credential' || errCode === 'auth/user-not-found' || errCode === 'auth/wrong-password') {
+        friendlyMessage = "Incorrect email or password. Please verify your details or reset your password.";
+      } else if (errCode === 'auth/weak-password') {
+        friendlyMessage = "Password is too weak. Please use at least 6 characters.";
+      } else if (errCode === 'auth/invalid-email') {
+        friendlyMessage = "Please enter a valid email address.";
+      }
+      setAuthFormError(friendlyMessage);
     } finally {
       setAuthLoading(false);
     }
@@ -792,11 +805,33 @@ export const GameMenu: React.FC<GameMenuProps> = ({
 
               {/* Error Message */}
               {authFormError && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex items-start gap-2 animate-in fade-in">
+                <div className="mb-4 p-3.5 bg-red-50/95 border border-red-200 rounded-2xl text-red-800 text-xs font-semibold flex items-start gap-2.5 animate-in fade-in shadow-xs">
                   <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="font-bold text-red-950">Authentication Notice</p>
-                    <p className="text-[11px] text-red-800 mt-0.5">{authFormError}</p>
+                    <p className="text-[11px] text-red-800 mt-1 leading-relaxed">{authFormError}</p>
+                    
+                    {(authFormError.includes('Firebase Console') || authFormError.includes('Email/Password')) && (
+                      <div className="mt-2.5 pt-2 border-t border-red-200/60 flex flex-col sm:flex-row gap-2">
+                        <a
+                          href="https://console.firebase.google.com/project/golf-labs/authentication/providers"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[10px] font-bold shadow-xs transition-colors"
+                        >
+                          <span>Open Firebase Console</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={handleGoogleClick}
+                          className="inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-white border border-red-300 text-red-900 rounded-lg text-[10px] font-bold hover:bg-red-100/50 transition-colors"
+                        >
+                          <LogIn className="w-3 h-3 text-[#db5641]" />
+                          <span>Use Google Instead</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
