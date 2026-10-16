@@ -7,12 +7,13 @@ import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft, ExternalLink } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft, ExternalLink, Smartphone } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
 import { ConsoleView } from './ConsoleView';
 import { OnlineMultiplayerView } from './OnlineMultiplayerView';
+import { AndroidAppView } from './AndroidAppView';
 import { RankLogo, RankBadge } from './RankBadges';
 import { getRankFromRP, getRankProgress, RANK_TIERS, getLocalizedRankTier } from './RankData';
 import { RanksModal } from './RanksModal';
@@ -104,7 +105,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   language = 'es',
   onLanguageChange = () => {},
 }) => {
-  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'multiplayer' | 'ranks' | 'store' | 'leaderboard' | 'achievements' | 'how-to' | 'settings' | 'console'>('play');
+  const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'multiplayer' | 'ranks' | 'store' | 'leaderboard' | 'achievements' | 'how-to' | 'settings' | 'android' | 'console'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
   const [copied, setCopied] = useState(false);
   const [showRanksModal, setShowRanksModal] = useState(false);
@@ -455,6 +456,22 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               >
                 <Settings className="w-4 h-4 shrink-0" />
                 <span>{t('tab_settings', language)}</span>
+              </button>
+
+              {/* Android Native Port & APK Tab */}
+              <button
+                onClick={() => setActiveTab('android')}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-bold transition-all whitespace-nowrap md:whitespace-normal shrink-0 border border-[#a4c639]/30 ${
+                  activeTab === 'android'
+                    ? 'bg-[#1b2a1e] text-[#a4c639] shadow-md ring-2 ring-[#a4c639]/40'
+                    : 'bg-[#a4c639]/10 text-emerald-950 hover:bg-[#a4c639]/20'
+                }`}
+              >
+                <Smartphone className="w-4 h-4 text-[#75951d] shrink-0" />
+                <span>Android App</span>
+                <span className="ml-auto bg-[#a4c639] text-stone-950 text-[9px] px-1.5 py-0.5 rounded-full font-black">
+                  APK
+                </span>
               </button>
 
               {/* Console Tab - EXCLUSIVELY FOR MARTIN */}
@@ -1566,6 +1583,11 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 </button>
               </div>
             </div>
+          )}
+
+          {/* TAB: ANDROID APP & APK */}
+          {activeTab === 'android' && (
+            <AndroidAppView onStartGame={() => onStartGame(currentLevelIndex)} />
           )}
 
           {/* TAB 8: CONSOLE (EXCLUSIVELY FOR MARTIN) */}

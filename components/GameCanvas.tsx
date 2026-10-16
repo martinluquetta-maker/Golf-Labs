@@ -45,7 +45,16 @@ import { PORTRAIT_SCALE_OVERRIDES } from '../levels';
 import { BALLS_STORE_ITEMS, TRAILS_STORE_ITEMS, TrailItem } from './BallStoreData';
 import { MultiplayerPlayer } from '../services/multiplayerService';
 import { getRankFromRP } from './RankData';
-import { Activity, Gauge, Zap, CheckCircle2 } from 'lucide-react';
+import { Activity, Gauge, Zap, CheckCircle2, Target, Crosshair, Sparkles, Wand2 } from 'lucide-react';
+import { solveAimbot, AimbotSolution } from '../utils/aimbotSolver';
+import { 
+  vibratePutt, 
+  vibrateCollision, 
+  vibrateHoleInOne, 
+  vibrateCupSink, 
+  requestWakeLock, 
+  releaseWakeLock 
+} from '../utils/androidFeatures';
 
 interface BoostTile extends Vector2 {
   dx: number;
@@ -174,12 +183,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [touchPower, setTouchPower] = useState(50); // Power percentage (1 to 100)
   const [isBallMoving, setIsBallMoving] = useState(false);
 
+  // Mobile Aimbot state
+  const [aimbotEnabled, setAimbotEnabled] = useState(false);
+  const [autoAimbot, setAutoAimbot] = useState(true);
+  const [aimbotSolution, setAimbotSolution] = useState<AimbotSolution | null>(null);
+  const prevMovingRef = useRef(false);
+
   const dialRef = useRef<HTMLDivElement>(null);
   const [dialDragging, setDialDragging] = useState(false);
   const dialDragStartRef = useRef<number>(0);
   const dialAngleStartRef = useRef<number>(0);
 
-  // Auto-detect mobile devices to enable touch controls panel by default
+  // Auto-detect mobile devices to enable touch controls & aimbot by default
   useEffect(() => {
     const checkMobile = () => {
       const isMobileDevice = typeof window !== 'undefined' && (
@@ -188,6 +203,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       );
       if (isMobileDevice) {
         setTouchControlsEnabled(true);
+        setAimbotEnabled(true);
       }
     };
     checkMobile();
@@ -496,6 +512,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ballRef.current.vel.y = Math.sin(angle) * cappedPower;
         ballRef.current.isMoving = true;
         playForeground(getPath("/media/audio/sfx/minigolf/putt.mp3"));
+        vibratePutt((cappedPower / MAX_POWER) * 100);
         onStroke();
     }
     setIsAiming(false);
@@ -563,9 +580,84 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         b.vel.y = Math.sin(touchAngle) * cappedPower;
         b.isMoving = true;
         playForeground(getPath("/media/audio/sfx/minigolf/putt.mp3"));
+        vibratePutt(touchPower);
         onStroke();
     }
   };
+
+  // Mobile Aimbot Solver Execution
+  const runAimbotCalculation = useCallback((apply = true) => {
+    const b = ballRef.current;
+    const h = holeRef.current;
+    if (!b || !h) return null;
+
+    const sol = solveAimbot(
+      b.pos,
+      h,
+      wallsRef.current,
+      decorationsRef.current,
+      boostTilesRef.current,
+      waterTilesRef.current,
+      waterArcsRef.current
+    );
+
+    setAimbotSolution(sol);
+
+    if (apply) {
+      setTouchAngle(sol.angle);
+      setTouchPower(sol.powerPercent);
+      vibrateCollision();
+    }
+
+    return sol;
+  }, []);
+
+  // One-Tap Mobile Aimbot Strike & Sink
+  const handleAimbotFire = () => {
+    const b = ballRef.current;
+    if (!b || b.sunk || b.isMoving || b.teleportTimer > 0) return;
+
+    let sol = aimbotSolution;
+    if (!sol) {
+      sol = runAimbotCalculation(true);
+    }
+    if (!sol) return;
+
+    setTouchAngle(sol.angle);
+    setTouchPower(sol.powerPercent);
+
+    startShotTracking();
+    const speed = Math.min((sol.powerPercent / 100) * MAX_POWER, MAX_POWER);
+    b.vel.x = Math.cos(sol.angle) * speed;
+    b.vel.y = Math.sin(sol.angle) * speed;
+    b.isMoving = true;
+    playForeground(getPath("/media/audio/sfx/minigolf/putt.mp3"));
+    vibratePutt(sol.powerPercent);
+    onStroke();
+  };
+
+  // Recalculate Aimbot when enabled or when level / strokes change
+  useEffect(() => {
+    if (aimbotEnabled) {
+      const timer = setTimeout(() => {
+        runAimbotCalculation(true);
+      }, 90);
+      return () => clearTimeout(timer);
+    }
+  }, [aimbotEnabled, level, strokes, runAimbotCalculation]);
+
+  // Auto-aim when the ball comes to a complete stop
+  useEffect(() => {
+    if (prevMovingRef.current && !isBallMoving) {
+      if (aimbotEnabled && autoAimbot) {
+        const timer = setTimeout(() => {
+          runAimbotCalculation(true);
+        }, 120);
+        return () => clearTimeout(timer);
+      }
+    }
+    prevMovingRef.current = isBallMoving;
+  }, [isBallMoving, aimbotEnabled, autoAimbot, runAimbotCalculation]);
 
   useEffect(() => {
     if (isAiming) {
@@ -983,6 +1075,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                           b.vel.y = b.vel.y - 1.8 * dot * normalY;
                           
                           playForeground(getPath("/media/audio/sfx/minigolf/hitwall.mp3"));
+                          vibrateCollision();
                           collided = true;
                       }
                   }
@@ -1109,6 +1202,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 playForeground(getPath("/media/audio/sfx/minigolf/intohole.mp3"));
                 if (strokes === 1) {
                     triggerConfetti();
+                    vibrateHoleInOne();
+                } else {
+                    vibrateCupSink();
                 }
                 onHole();
             }
@@ -2276,6 +2372,113 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         }
     }
 
+    // ==========================================
+    // Render Mobile Aimbot Trajectory Laser & Reticle
+    // ==========================================
+    if (aimbotEnabled && aimbotSolution && !b.isMoving && !b.sunk && b.teleportTimer === 0) {
+      const sol = aimbotSolution;
+      const pts = sol.trajectoryPoints;
+      const isGreen = sol.isHoleInOne;
+      const themeColor = isGreen ? '#10b981' : '#38bdf8';
+      const glowColor = isGreen ? 'rgba(16, 185, 129, 0.45)' : 'rgba(56, 189, 248, 0.45)';
+
+      if (pts && pts.length > 1) {
+        ctx.save();
+        
+        // 1. Outer Neon Holographic Laser Glow
+        ctx.shadowColor = themeColor;
+        ctx.shadowBlur = 10;
+        ctx.strokeStyle = glowColor;
+        ctx.lineWidth = 4.2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.stroke();
+
+        // 2. Crisp animated laser core beam
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([8, 6]);
+        ctx.lineDashOffset = -(Date.now() / 25) % 14;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 3. Wall Bounce Reflection Points
+        if (sol.bounces > 0) {
+          for (let i = 1; i < pts.length - 1; i++) {
+            const bp = pts[i];
+            ctx.beginPath();
+            ctx.arc(bp.x, bp.y, 6.5, 0, Math.PI * 2);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2.0;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.arc(bp.x, bp.y, 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+          }
+        }
+
+        ctx.restore();
+      }
+
+      // 4. Target Lock Reticle on Hole
+      ctx.save();
+      const animTime = Date.now() / 350;
+      const ringRadius = 16 + Math.sin(animTime * 3) * 2;
+
+      ctx.shadowColor = themeColor;
+      ctx.shadowBlur = 10;
+      ctx.strokeStyle = themeColor;
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.arc(h.x, h.y, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Rotating Crosshair brackets
+      ctx.save();
+      ctx.translate(h.x, h.y);
+      ctx.rotate(animTime);
+      const tickDist = ringRadius + 3;
+      const tickLen = 5;
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = (i * Math.PI) / 2;
+        ctx.moveTo(Math.cos(a) * tickDist, Math.sin(a) * tickDist);
+        ctx.lineTo(Math.cos(a) * (tickDist + tickLen), Math.sin(a) * (tickDist + tickLen));
+      }
+      ctx.strokeStyle = themeColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      // Holographic Floating Badge above Hole
+      const badgeY = h.y - 28;
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const badgeText = sol.isHoleInOne ? '🎯 HOLE-IN-ONE LOCK' : '🎯 AIMBOT LOCKED';
+      const textWidth = ctx.measureText(badgeText).width;
+
+      ctx.fillStyle = 'rgba(10, 16, 26, 0.92)';
+      ctx.beginPath();
+      ctx.roundRect(h.x - textWidth / 2 - 6, badgeY - 8, textWidth + 12, 16, 4);
+      ctx.fill();
+      ctx.strokeStyle = themeColor;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = isGreen ? '#34d399' : '#7dd3fc';
+      ctx.fillText(badgeText, h.x, badgeY);
+      ctx.restore();
+    }
+
     // Flag rendering (always rendered on top of everything else)
     ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(h.x, h.y - 40); ctx.strokeStyle = COLORS.WHITE; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
     ctx.beginPath(); ctx.moveTo(h.x + 2, h.y - 40); ctx.lineTo(h.x + 18, h.y - 32); ctx.lineTo(h.x + 2, h.y - 24); ctx.closePath();
@@ -2306,7 +2509,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     });
 
     ctx.restore();
-  }, [isAiming, dragStart, dragCurrent, level, dimensions, touchControlsEnabled, touchAngle, touchPower]);
+  }, [isAiming, dragStart, dragCurrent, level, dimensions, touchControlsEnabled, touchAngle, touchPower, aimbotEnabled, aimbotSolution]);
 
   useEffect(() => {
     const loop = (timestamp: number) => {
@@ -2324,6 +2527,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [update, render]);
 
+  // Keep screen awake on Android devices during active play
+  useEffect(() => {
+    requestWakeLock();
+    return () => {
+      releaseWakeLock();
+    };
+  }, []);
+
   return (
     <div ref={containerRef} className="w-full h-full absolute inset-0 overflow-hidden bg-transparent rounded-2xl [mask-image:-webkit-radial-gradient(white,black)]">
       <canvas 
@@ -2334,23 +2545,49 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         onTouchStart={handleMouseDown}
       />
 
-      {/* Touch Assist Enable/Disable toggler button (Top-Left) */}
-      <button 
-        type="button"
-        onClick={(e) => { 
-          e.stopPropagation(); 
-          setTouchControlsEnabled(!touchControlsEnabled); 
-        }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        className={`absolute top-4 left-4 z-40 px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all flex items-center gap-1.5 backdrop-blur-md pointer-events-auto border ${
-          touchControlsEnabled 
-            ? 'bg-[#db5641] text-[#faf6ee] border-[#db5641]' 
-            : 'bg-[#faf6ee]/90 text-[#3d312a] border-[#3d312a]/20 hover:bg-[#faf6ee]'
-        }`}
-      >
-        <span className="text-sm">🎮</span> {touchControlsEnabled ? 'Touch Assist: ON' : 'Touch Assist: OFF'}
-      </button>
+      {/* Mobile Controls & Aimbot Header Bar (Top-Left) */}
+      <div className="absolute top-4 left-4 z-40 flex items-center gap-2 pointer-events-auto select-none">
+        <button 
+          type="button"
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            setTouchControlsEnabled(!touchControlsEnabled); 
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className={`px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all flex items-center gap-1.5 backdrop-blur-md border cursor-pointer active:scale-95 ${
+            touchControlsEnabled 
+              ? 'bg-[#db5641] text-[#faf6ee] border-[#db5641]' 
+              : 'bg-[#faf6ee]/90 text-[#3d312a] border-[#3d312a]/20 hover:bg-[#faf6ee]'
+          }`}
+        >
+          <span className="text-sm">🎮</span> 
+          <span>{touchControlsEnabled ? 'Touch: ON' : 'Touch: OFF'}</span>
+        </button>
+
+        <button 
+          type="button"
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            const next = !aimbotEnabled;
+            setAimbotEnabled(next);
+            if (next) {
+              setTouchControlsEnabled(true);
+              runAimbotCalculation(true);
+            }
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className={`px-3 py-1.5 rounded-full font-bold text-xs shadow-lg transition-all flex items-center gap-1.5 backdrop-blur-md border cursor-pointer active:scale-95 ${
+            aimbotEnabled 
+              ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400/40 shadow-emerald-950/40 animate-pulse' 
+              : 'bg-[#faf6ee]/90 text-[#3d312a] border-[#3d312a]/20 hover:bg-[#faf6ee]'
+          }`}
+        >
+          <Target className={`w-3.5 h-3.5 ${aimbotEnabled ? 'text-emerald-200 animate-spin' : 'text-emerald-700'}`} style={aimbotEnabled ? { animationDuration: '6s' } : undefined} />
+          <span>{aimbotEnabled ? '🎯 Aimbot: ON' : '🎯 Aimbot: OFF'}</span>
+        </button>
+      </div>
 
       {/* Real-time Shot Distance & Swing Strength Telemetry Pill (Top-Center) */}
       {isDistanceVisible && (
@@ -2425,151 +2662,249 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       {/* Floating Touch Controls HUD Dashboard (Bottom) */}
       {touchControlsEnabled && (
         <div 
-          className="absolute bottom-4 left-4 right-4 z-30 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-3xl bg-[#faf6ee]/95 border border-[#3d312a]/15 shadow-2xl backdrop-blur-md pointer-events-auto select-none transition-all animate-in slide-in-from-bottom duration-300 max-w-lg mx-auto"
+          className="absolute bottom-4 left-4 right-4 z-30 flex flex-col items-stretch gap-3 p-3.5 sm:p-4 rounded-3xl bg-[#faf6ee]/95 border border-[#3d312a]/15 shadow-2xl backdrop-blur-md pointer-events-auto select-none transition-all animate-in slide-in-from-bottom duration-300 max-w-xl mx-auto"
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
         >
-          {/* Aim Direction / Focus scrollable wheel dial */}
-          <div className="flex-1 flex flex-col gap-1 px-1">
-            <div className="flex items-center justify-between text-[11px] font-bold text-[#7a7065] mb-0.5">
-              <span className="flex items-center gap-1">🧭 <span>AIM DIRECTION: {Math.round((touchAngle * 180) / Math.PI)}°</span></span>
-              <button 
+          {/* Mobile Aimbot Command Ribbon */}
+          <div className="w-full pb-2 border-b border-[#3d312a]/10 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
                 type="button"
                 onClick={() => {
-                  const b = ballRef.current;
-                  const h = holeRef.current;
-                  if (b && h) {
-                    setTouchAngle(Math.atan2(h.y - b.pos.y, h.x - b.pos.x));
-                  }
+                  const next = !aimbotEnabled;
+                  setAimbotEnabled(next);
+                  if (next) runAimbotCalculation(true);
                 }}
-                className="text-[10px] text-[#db5641] hover:underline font-bold"
+                className={`px-3 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 ${
+                  aimbotEnabled 
+                    ? 'bg-emerald-600 text-white shadow-emerald-700/30 ring-1 ring-emerald-400' 
+                    : 'bg-[#3d312a]/10 text-[#3d312a] hover:bg-[#3d312a]/15'
+                }`}
               >
-                Snap to Hole
+                <Target className="w-3.5 h-3.5" />
+                <span>{aimbotEnabled ? 'AIMBOT: ACTIVE' : 'ENABLE AIMBOT'}</span>
               </button>
+
+              {aimbotEnabled && (
+                <button
+                  type="button"
+                  onClick={() => runAimbotCalculation(true)}
+                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-950 border border-amber-500/40 rounded-xl text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                >
+                  <Wand2 className="w-3 h-3 text-amber-700" />
+                  <span>Re-Lock</span>
+                </button>
+              )}
             </div>
 
-            {/* Scrolling Dial Track - Slide left/right to rotate line */}
-            <div 
-              ref={dialRef}
-              onMouseDown={(e) => handleDialMouseDown(e.clientX)}
-              onMouseMove={(e) => handleDialMouseMove(e.clientX)}
-              onMouseUp={() => setDialDragging(false)}
-              onMouseLeave={() => setDialDragging(false)}
-              onTouchStart={(e) => handleDialMouseDown(e.touches[0].clientX)}
-              onTouchMove={(e) => handleDialMouseMove(e.touches[0].clientX)}
-              onTouchEnd={() => setDialDragging(false)}
-              className="relative h-9 w-full bg-[#3d312a]/5 border border-[#3d312a]/10 rounded-xl overflow-hidden cursor-ew-resize flex items-center justify-center pointer-events-auto touch-none"
-            >
-              <div className="absolute inset-0 flex justify-between items-center px-4 opacity-30 select-none pointer-events-none font-mono text-[9px] text-[#3d312a]">
-                <span>W</span><span>|</span><span>|</span><span>N</span><span>|</span><span>|</span><span>E</span><span>|</span><span>|</span><span>S</span>
+            {aimbotEnabled && aimbotSolution && (
+              <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                <span className={`px-2 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider ${
+                  aimbotSolution.isHoleInOne 
+                    ? 'bg-emerald-500/25 text-emerald-900 border border-emerald-500/40 ring-1 ring-emerald-500/20' 
+                    : 'bg-sky-500/20 text-sky-900 border border-sky-500/30'
+                }`}>
+                  {aimbotSolution.isHoleInOne ? '🎯 100% SINK' : `🎯 ${aimbotSolution.confidence}% ACCURACY`}
+                </span>
+                <span className="text-[#5a5045] text-[10px] font-extrabold hidden sm:inline">
+                  {aimbotSolution.description}
+                </span>
               </div>
-              <div className="absolute inset-x-0 h-[1px] bg-[#3d312a]/10 top-1/2 -translate-y-1/2"></div>
-              
-              {/* Center indicator line tick marks */}
-              <div className="absolute left-1/2 -translate-x-1/2 w-4 h-full flex flex-col justify-between items-center pointer-events-none">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#db5641]"></div>
-                <div className="w-0.5 h-3 bg-[#db5641]"></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-[#db5641]"></div>
-              </div>
+            )}
 
-              <span className="font-mono font-bold text-xs text-[#3d312a] z-10 bg-[#faf6ee] px-2 py-0.5 rounded-md border border-[#3d312a]/10 shadow-sm pointer-events-none">
-                {Math.round((touchAngle * 180) / Math.PI)}°
-              </span>
-            </div>
-
-            {/* Precise step adjusting buttons */}
-            <div className="grid grid-cols-4 gap-1 mt-1 text-center">
-              <button 
-                type="button"
-                onClick={() => adjustAngle(-5 * Math.PI / 180)}
-                className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
-              >
-                -5°
-              </button>
-              <button 
-                type="button"
-                onClick={() => adjustAngle(-1 * Math.PI / 180)}
-                className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
-              >
-                -1°
-              </button>
-              <button 
-                type="button"
-                onClick={() => adjustAngle(1 * Math.PI / 180)}
-                className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
-              >
-                +1°
-              </button>
-              <button 
-                type="button"
-                onClick={() => adjustAngle(5 * Math.PI / 180)}
-                className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
-              >
-                +5°
-              </button>
-            </div>
+            {aimbotEnabled && (
+              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#7a7065] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoAimbot}
+                  onChange={(e) => setAutoAimbot(e.target.checked)}
+                  className="accent-emerald-600 rounded cursor-pointer"
+                />
+                <span>Auto-Lock</span>
+              </label>
+            )}
           </div>
 
-          {/* Visual Divider block */}
-          <div className="w-[1px] self-stretch bg-[#3d312a]/10 hidden md:block mx-1"></div>
-          <div className="w-full h-[1px] bg-[#3d312a]/10 md:hidden my-1"></div>
-
-          {/* Power intensity sliders */}
-          <div className="w-full md:w-44 flex flex-col gap-1 px-1">
-            <div className="flex items-center justify-between text-[11px] font-bold text-[#7a7065] mb-0.5">
-              <span className="flex items-center gap-1">⚡ <span>POWER: {touchPower}%</span></span>
-            </div>
-
-            <div className="flex items-center gap-3 w-full">
-              <input 
-                type="range" 
-                min="5" 
-                max="100" 
-                value={touchPower} 
-                onChange={(e) => setTouchPower(Number(e.target.value))}
-                className="w-full accent-[#db5641] h-1.5 bg-[#3d312a]/10 rounded-lg cursor-pointer max-w-full"
-              />
-            </div>
-
-            {/* Quick power selectors */}
-            <div className="grid grid-cols-4 gap-1 mt-1 text-center">
-              {[20, 50, 75, 100].map(pct => (
-                <button
-                  key={pct}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4">
+            {/* Aim Direction / Focus scrollable wheel dial */}
+            <div className="flex-1 flex flex-col gap-1 px-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-[#7a7065] mb-0.5">
+                <span className="flex items-center gap-1">🧭 <span>AIM DIRECTION: {Math.round((touchAngle * 180) / Math.PI)}°</span></span>
+                <button 
                   type="button"
-                  onClick={() => setTouchPower(pct)}
-                  className={`py-1 rounded-md text-[10px] font-bold transition-all ${
-                    touchPower === pct 
-                      ? 'bg-[#db5641] text-white shadow-sm' 
-                      : 'bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a]'
+                  onClick={() => {
+                    if (aimbotEnabled) {
+                      runAimbotCalculation(true);
+                    } else {
+                      const b = ballRef.current;
+                      const h = holeRef.current;
+                      if (b && h) {
+                        setTouchAngle(Math.atan2(h.y - b.pos.y, h.x - b.pos.x));
+                      }
+                    }
+                  }}
+                  className="text-[10px] text-[#db5641] hover:underline font-bold cursor-pointer"
+                >
+                  {aimbotEnabled ? '🎯 Recalibrate Aimbot' : 'Snap to Hole'}
+                </button>
+              </div>
+
+              {/* Scrolling Dial Track - Slide left/right to rotate line */}
+              <div 
+                ref={dialRef}
+                onMouseDown={(e) => handleDialMouseDown(e.clientX)}
+                onMouseMove={(e) => handleDialMouseMove(e.clientX)}
+                onMouseUp={() => setDialDragging(false)}
+                onMouseLeave={() => setDialDragging(false)}
+                onTouchStart={(e) => handleDialMouseDown(e.touches[0].clientX)}
+                onTouchMove={(e) => handleDialMouseMove(e.touches[0].clientX)}
+                onTouchEnd={() => setDialDragging(false)}
+                className="relative h-9 w-full bg-[#3d312a]/5 border border-[#3d312a]/10 rounded-xl overflow-hidden cursor-ew-resize flex items-center justify-center pointer-events-auto touch-none"
+              >
+                <div className="absolute inset-0 flex justify-between items-center px-4 opacity-30 select-none pointer-events-none font-mono text-[9px] text-[#3d312a]">
+                  <span>W</span><span>|</span><span>|</span><span>N</span><span>|</span><span>|</span><span>E</span><span>|</span><span>|</span><span>S</span>
+                </div>
+                <div className="absolute inset-x-0 h-[1px] bg-[#3d312a]/10 top-1/2 -translate-y-1/2"></div>
+                
+                {/* Center indicator line tick marks */}
+                <div className="absolute left-1/2 -translate-x-1/2 w-4 h-full flex flex-col justify-between items-center pointer-events-none">
+                  <div className={`w-1.5 h-1.5 rounded-full ${aimbotEnabled ? 'bg-emerald-600' : 'bg-[#db5641]'}`}></div>
+                  <div className={`w-0.5 h-3 ${aimbotEnabled ? 'bg-emerald-600' : 'bg-[#db5641]'}`}></div>
+                  <div className={`w-1.5 h-1.5 rounded-full ${aimbotEnabled ? 'bg-emerald-600' : 'bg-[#db5641]'}`}></div>
+                </div>
+
+                <span className={`font-mono font-bold text-xs z-10 px-2 py-0.5 rounded-md border shadow-sm pointer-events-none ${
+                  aimbotEnabled 
+                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
+                    : 'bg-[#faf6ee] text-[#3d312a] border-[#3d312a]/10'
+                }`}>
+                  {Math.round((touchAngle * 180) / Math.PI)}°
+                </span>
+              </div>
+
+              {/* Precise step adjusting buttons */}
+              <div className="grid grid-cols-4 gap-1 mt-1 text-center">
+                <button 
+                  type="button"
+                  onClick={() => adjustAngle(-5 * Math.PI / 180)}
+                  className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
+                >
+                  -5°
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => adjustAngle(-1 * Math.PI / 180)}
+                  className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
+                >
+                  -1°
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => adjustAngle(1 * Math.PI / 180)}
+                  className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
+                >
+                  +1°
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => adjustAngle(5 * Math.PI / 180)}
+                  className="py-1 bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a] rounded-lg text-[10px] font-extrabold active:scale-95 transition-all"
+                >
+                  +5°
+                </button>
+              </div>
+            </div>
+
+            {/* Visual Divider block */}
+            <div className="w-[1px] self-stretch bg-[#3d312a]/10 hidden md:block mx-1"></div>
+            <div className="w-full h-[1px] bg-[#3d312a]/10 md:hidden my-1"></div>
+
+            {/* Power intensity sliders */}
+            <div className="w-full md:w-44 flex flex-col gap-1 px-1">
+              <div className="flex items-center justify-between text-[11px] font-bold text-[#7a7065] mb-0.5">
+                <span className="flex items-center gap-1">⚡ <span>POWER: {touchPower}%</span></span>
+                {aimbotEnabled && aimbotSolution && (
+                  <span className="text-[10px] font-extrabold text-emerald-700">
+                    Target: {aimbotSolution.powerPercent}%
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 w-full">
+                <input 
+                  type="range" 
+                  min="5" 
+                  max="100" 
+                  value={touchPower} 
+                  onChange={(e) => setTouchPower(Number(e.target.value))}
+                  className={`w-full h-1.5 rounded-lg cursor-pointer max-w-full ${
+                    aimbotEnabled ? 'accent-emerald-600 bg-emerald-100' : 'accent-[#db5641] bg-[#3d312a]/10'
+                  }`}
+                />
+              </div>
+
+              {/* Quick power selectors */}
+              <div className="grid grid-cols-4 gap-1 mt-1 text-center">
+                {[20, 50, 75, 100].map(pct => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setTouchPower(pct)}
+                    className={`py-1 rounded-md text-[10px] font-bold transition-all ${
+                      touchPower === pct 
+                        ? (aimbotEnabled ? 'bg-emerald-600 text-white shadow-sm' : 'bg-[#db5641] text-white shadow-sm')
+                        : 'bg-[#3d312a]/5 hover:bg-[#3d312a]/10 text-[#3d312a]'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Launch strike button */}
+            <div className="flex flex-col sm:flex-row md:flex-col gap-1.5 justify-center">
+              {aimbotEnabled ? (
+                <button 
+                  type="button"
+                  disabled={isBallMoving}
+                  onClick={handleAimbotFire}
+                  className={`py-3 px-4 rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 select-none text-white shadow-lg active:scale-95 transition-all w-full md:w-32 border cursor-pointer ${
+                    isBallMoving 
+                      ? 'bg-[#7a7065]/40 text-[#7a7065] cursor-not-allowed border-transparent shadow-none' 
+                      : 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 ring-2 ring-emerald-400/30 shadow-emerald-950/40'
                   }`}
                 >
-                  {pct}%
+                  <span className="text-[13px] font-black tracking-wider leading-none flex items-center gap-1">
+                    <Target className="w-3.5 h-3.5" />
+                    {isBallMoving ? 'ROLLING' : 'AUTO-SINK'}
+                  </span>
+                  <span className="text-[8px] tracking-tight opacity-80 leading-none uppercase font-extrabold">
+                    {isBallMoving ? 'In Motion' : '1-Tap Aimbot'}
+                  </span>
                 </button>
-              ))}
+              ) : (
+                <button 
+                  type="button"
+                  disabled={isBallMoving}
+                  onClick={handleTouchShoot}
+                  className={`py-3 px-5 rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 select-none text-white shadow-md active:scale-95 transition-all w-full md:w-28 cursor-pointer ${
+                    isBallMoving 
+                      ? 'bg-[#7a7065]/40 text-[#7a7065] cursor-not-allowed border-transparent shadow-none' 
+                      : 'bg-[#db5641] hover:bg-[#c24a37]'
+                  }`}
+                >
+                  <span className="text-[14px] font-extrabold tracking-wider leading-none">
+                    {isBallMoving ? 'ROLL' : 'PUTT!'}
+                  </span>
+                  <span className="text-[8px] tracking-tight opacity-75 leading-none uppercase">
+                    {isBallMoving ? 'WAITING' : 'Tap to strike'}
+                  </span>
+                </button>
+              )}
             </div>
-          </div>
-
-          {/* Launch strike button */}
-          <div className="flex flex-col justify-center">
-            <button 
-              type="button"
-              disabled={isBallMoving}
-              onClick={handleTouchShoot}
-              className={`py-3 px-5 rounded-2xl font-bold flex flex-col items-center justify-center gap-0.5 select-none text-white shadow-md active:scale-95 transition-all w-full md:w-28 ${
-                isBallMoving 
-                  ? 'bg-[#7a7065]/40 text-[#7a7065] cursor-not-allowed border-transparent shadow-none' 
-                  : 'bg-[#db5641] hover:bg-[#c24a37]'
-              }`}
-            >
-              <span className="text-[14px] font-extrabold tracking-wider leading-none">
-                {isBallMoving ? 'ROLL' : 'PUTT!'}
-              </span>
-              <span className="text-[8px] tracking-tight opacity-75 leading-none uppercase">
-                {isBallMoving ? 'WAITING' : 'Tap to strike'}
-              </span>
-            </button>
           </div>
         </div>
       )}
