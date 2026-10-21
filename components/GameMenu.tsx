@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { LevelData } from '../types';
 import { LEVELS, CYBER_LEVELS } from '../levels';
 import { COLORS } from '../constants';
-import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft, ExternalLink, Smartphone } from 'lucide-react';
+import { Play, HelpCircle, Settings, Award, ChevronRight, Volume2, Bot, Sparkles, Sliders, ShoppingBag, Coins, User, LogIn, LogOut, Cloud, CloudOff, RefreshCw, AlertCircle, Copy, Check, Trophy, Star, Lock, Crown, Terminal, Mail, Key, Eye, EyeOff, UserPlus, X, ShieldCheck, CheckCircle2, Swords, Flame, ArrowLeft, ExternalLink, Smartphone, Target } from 'lucide-react';
 import { BallStoreView } from './BallStoreView';
 import { LeaderboardView } from './LeaderboardView';
 import { AchievementsView } from './AchievementsView';
@@ -21,6 +21,8 @@ import { MultiplayerRoom } from '../services/multiplayerService';
 import { Language, SUPPORTED_LANGUAGES, t, saveLanguage } from '../utils/translations';
 import { Globe } from 'lucide-react';
 import { SecretSoundModal } from './SecretSoundModal';
+import { pwaUpdateManager, APP_VERSION } from '../utils/pwaUpdateManager';
+import { getRewardForStreakDay } from '../services/streakService';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -62,6 +64,10 @@ interface GameMenuProps {
   rankedMatches?: number;
   language?: Language;
   onLanguageChange?: (lang: Language) => void;
+  aimbotEnabled?: boolean;
+  onToggleAimbot?: () => void;
+  dailyStreak?: number;
+  onOpenDailyStreak?: () => void;
 }
 
 export const GameMenu: React.FC<GameMenuProps> = ({
@@ -104,6 +110,10 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   rankedMatches = 0,
   language = 'es',
   onLanguageChange = () => {},
+  aimbotEnabled = true,
+  onToggleAimbot = () => {},
+  dailyStreak = 1,
+  onOpenDailyStreak = () => {},
 }) => {
   const [activeTab, setActiveTab] = useState<'play' | 'levels' | 'multiplayer' | 'ranks' | 'store' | 'leaderboard' | 'achievements' | 'how-to' | 'settings' | 'android' | 'console'>('play');
   const [levelGroup, setLevelGroup] = useState<0 | 1 | 2>(0); // 0: 1-20, 1: 21-40, 2: 41-60
@@ -124,6 +134,38 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   const [authLoading, setAuthLoading] = useState(false);
   const [authFormError, setAuthFormError] = useState<string | null>(null);
   const [resetSuccessMsg, setResetSuccessMsg] = useState<string | null>(null);
+  const [isCheckingOTA, setIsCheckingOTA] = useState(false);
+  const [otaStatusMsg, setOtaStatusMsg] = useState<string | null>(null);
+
+  const handleCheckOTA = async () => {
+    setIsCheckingOTA(true);
+    setOtaStatusMsg(null);
+    try {
+      const hasUpdate = await pwaUpdateManager.checkForUpdate();
+      if (hasUpdate) {
+        setOtaStatusMsg('¡Nueva actualización detectada! Se desplegará el aviso arriba.');
+      } else {
+        setOtaStatusMsg(`Juego al día en la versión más reciente (v${APP_VERSION}).`);
+      }
+    } catch {
+      setOtaStatusMsg('Sin conexión para comprobar actualizaciones.');
+    } finally {
+      setIsCheckingOTA(false);
+      setTimeout(() => setOtaStatusMsg(null), 6000);
+    }
+  };
+
+  const handleSimulateOTA = () => {
+    pwaUpdateManager.simulateUpdateForTesting();
+    setOtaStatusMsg('¡Aviso de actualización disparado en pantalla!');
+    setTimeout(() => setOtaStatusMsg(null), 4000);
+  };
+
+  const handlePurgeCache = async () => {
+    if (window.confirm('¿Vaciar caché y descargar los archivos más recientes desde el servidor?')) {
+      await pwaUpdateManager.clearAllCachesAndReload();
+    }
+  };
 
   // Exclusive Creator Check for Martin Luquetta
   const isMartin = Boolean(
@@ -332,6 +374,30 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               )}
             </div>
 
+            {/* Daily Login Streak Sidebar Badge */}
+            <button
+              type="button"
+              onClick={onOpenDailyStreak}
+              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-600/15 hover:from-amber-500/25 hover:to-amber-600/25 border border-amber-500/30 text-amber-950 font-bold transition-all text-left cursor-pointer group shadow-xs active:scale-98"
+              title={language === 'es' ? 'Ver Racha Diaria y Recompensas' : 'View Daily Streak & Rewards'}
+            >
+              <div className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <Flame className="w-4 h-4 fill-white animate-pulse" />
+              </div>
+              <div className="min-w-0 flex-1 leading-tight">
+                <span className="text-[9px] uppercase font-black text-amber-700 tracking-wider block">
+                  {language === 'es' ? 'Racha Diaria' : 'Daily Streak'}
+                </span>
+                <span className="text-xs font-black text-[#3d312a] flex items-center gap-1">
+                  {language === 'es' ? `Día ${dailyStreak}` : `Day ${dailyStreak}`}
+                  <span className="text-amber-500 text-[10px]">🔥</span>
+                </span>
+              </div>
+              <div className="bg-[#faf6ee] px-1.5 py-0.5 rounded-md text-[10px] font-black text-amber-700 border border-amber-500/20 shrink-0">
+                +{getRewardForStreakDay(dailyStreak)}🪙
+              </div>
+            </button>
+
             {/* Navigation Tabs */}
             <div className="flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-none">
               <button
@@ -471,6 +537,22 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                 <span>Android App</span>
                 <span className="ml-auto bg-[#a4c639] text-stone-950 text-[9px] px-1.5 py-0.5 rounded-full font-black">
                   APK
+                </span>
+              </button>
+
+              {/* Aimbot Mobile Status Pill */}
+              <button
+                type="button"
+                onClick={onToggleAimbot}
+                className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-950 text-xs font-bold transition-all text-left cursor-pointer"
+                title="Activar o desactivar el asistente de tiro Aimbot"
+              >
+                <Target className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
+                <span className="truncate">Aimbot Mobile</span>
+                <span className={`ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-black ${
+                  aimbotEnabled ? 'bg-emerald-600 text-white' : 'bg-stone-300 text-stone-800'
+                }`}>
+                  {aimbotEnabled ? 'ON' : 'OFF'}
                 </span>
               </button>
 
@@ -1030,6 +1112,42 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                   </div>
                 )}
 
+                {/* Daily Login Streak Interactive Card */}
+                <div 
+                  onClick={onOpenDailyStreak}
+                  className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/20 border-2 border-amber-500/40 hover:border-amber-500 rounded-2xl p-4 flex items-center justify-between gap-3 mb-4 cursor-pointer transition-all hover:shadow-md group active:scale-99"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md group-hover:scale-105 transition-transform shrink-0">
+                      <Flame className="w-6 h-6 fill-white animate-pulse" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-black uppercase text-amber-700 tracking-wider">
+                          {language === 'es' ? 'Racha de Inicio Diario' : 'Daily Login Streak'}
+                        </span>
+                        <span className="bg-amber-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full">
+                          {language === 'es' ? `Día ${dailyStreak}` : `Day ${dailyStreak}`} 🔥
+                        </span>
+                      </div>
+                      <p className="text-xs font-black text-[#3d312a] mt-0.5 truncate">
+                        {language === 'es' 
+                          ? `¡Racha de ${dailyStreak} ${dailyStreak === 1 ? 'día' : 'días'} activa! Vuelve cada día por monedas extra`
+                          : `${dailyStreak}-Day streak active! Return daily for extra coins`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1 bg-[#faf6ee] border border-amber-500/30 px-3 py-1.5 rounded-xl shadow-xs">
+                      <Coins className="w-4 h-4 text-amber-500" />
+                      <span className="text-xs font-black text-[#3d312a]">
+                        +{getRewardForStreakDay(dailyStreak)}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-amber-700 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+
                 {/* Return Point Indicator */}
                 <div className="bg-[#efe6d4]/50 border border-[#efe6d4] rounded-2xl p-4 flex justify-between items-center mb-4">
                   <div className="flex items-center gap-3">
@@ -1101,6 +1219,116 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </div>
+                </div>
+
+                {/* Aimbot Mobile Highlight Card */}
+                <div className="bg-gradient-to-r from-emerald-500/15 via-emerald-600/10 to-teal-500/10 border-2 border-emerald-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Target className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-black text-emerald-950 text-sm">🎯 Aimbot Mobile (Asistente de Tiro)</h4>
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                          aimbotEnabled ? 'bg-emerald-600 text-white' : 'bg-stone-300 text-stone-800'
+                        }`}>
+                          {aimbotEnabled ? 'ACTIVADO' : 'DESACTIVADO'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#5a5045] font-semibold mt-0.5">
+                        Láser holográfico con rebotes calculados y botón AUTO-SINK para meter la bola de 1 toque.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={onToggleAimbot}
+                      className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs active:scale-95 ${
+                        aimbotEnabled
+                          ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                          : 'bg-white text-[#3d312a] border border-[#3d312a]/20 hover:bg-[#faf6ee]'
+                      }`}
+                    >
+                      {aimbotEnabled ? 'Aimbot: ON ✅' : 'Activar Aimbot'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!aimbotEnabled && onToggleAimbot) onToggleAimbot();
+                        onStartGame(currentLevelIndex);
+                      }}
+                      className="flex-1 sm:flex-none px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>Jugar con Aimbot</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* PWA & APK OTA Update Control Card */}
+                <div className="bg-gradient-to-r from-amber-500/10 via-amber-600/5 to-emerald-500/10 border-2 border-amber-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xs">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 border border-amber-500/30 shadow-xs">
+                        <RefreshCw className={`w-5 h-5 ${isCheckingOTA ? 'animate-spin' : ''}`} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-black text-[#3d312a] text-sm">
+                            {language === 'es' ? '🔄 Actualizaciones PWA & APK' : '🔄 PWA & APK Updates'}
+                          </h4>
+                          <span className="bg-[#a4c639] text-[#1b2a1e] text-[9px] font-black px-2 py-0.5 rounded-full uppercase">
+                            v{APP_VERSION}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#7a7065] font-semibold mt-0.5">
+                          {language === 'es'
+                            ? 'Los cambios web se sincronizan a tu app de Android sin reinstalar el APK.'
+                            : 'Web updates sync live to your Android PWABuilder app over-the-air.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                      <button
+                        type="button"
+                        disabled={isCheckingOTA}
+                        onClick={handleCheckOTA}
+                        className="flex-1 sm:flex-none px-3 py-1.5 bg-[#3d312a] hover:bg-[#524238] text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingOTA ? 'animate-spin' : ''}`} />
+                        <span>{language === 'es' ? 'Buscar Actualizaciones' : 'Check for Updates'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleSimulateOTA}
+                        className="flex-1 sm:flex-none px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 border border-amber-500/40 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                        title="Probar cómo luce la notificación de actualización cuando subes cambios"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>{language === 'es' ? 'Probar Aviso' : 'Test Alert'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handlePurgeCache}
+                        className="px-2.5 py-1.5 text-stone-500 hover:text-stone-800 text-[11px] font-bold hover:underline"
+                        title="Limpiar caché y forzar recarga de archivos"
+                      >
+                        {language === 'es' ? 'Limpiar Caché' : 'Purge Cache'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {otaStatusMsg && (
+                    <div className="bg-white/80 border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-bold text-amber-900 flex items-center gap-2 animate-in fade-in">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{otaStatusMsg}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1557,6 +1785,44 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                           aria-hidden="true"
                           className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                             aiCaddyEnabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Aimbot Mobile Toggle Option */}
+                  <div className="bg-[#faf6ee] p-4 rounded-2xl border border-emerald-500/30 flex items-center justify-between gap-4">
+                    <div className="flex gap-3 items-start">
+                      <div className="h-10 w-10 shrink-0 bg-emerald-600/10 rounded-xl text-emerald-600 flex items-center justify-center font-bold">
+                        <Target className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-extrabold text-[#3d312a] text-sm">🎯 Aimbot Mobile (Asistente de Tiro Automático)</h4>
+                          <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                            NUEVO
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#7a7065] mt-0.5 leading-relaxed font-semibold">
+                          Activa el puntero láser, los rebotes de pared y el botón de auto-hoyo en pantalla en móviles y tabletas.
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={onToggleAimbot}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          aimbotEnabled ? 'bg-emerald-600' : 'bg-[#3d312a]/25'
+                        }`}
+                        role="switch"
+                        aria-checked={aimbotEnabled}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            aimbotEnabled ? 'translate-x-5' : 'translate-x-0'
                           }`}
                         />
                       </button>

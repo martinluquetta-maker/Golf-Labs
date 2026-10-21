@@ -45,6 +45,9 @@ service cloud.firestore {
           && data.equippedBallId.size() <= 64
           && (!('unlockedTrailIds' in data) || (data.unlockedTrailIds is list && data.unlockedTrailIds.size() <= 500))
           && (!('equippedTrailId' in data) || (data.equippedTrailId is string && data.equippedTrailId.size() <= 64))
+          && (!('dailyStreak' in data) || (data.dailyStreak is int && data.dailyStreak >= 0))
+          && (!('lastLoginDate' in data) || (data.lastLoginDate is string && data.lastLoginDate.size() <= 32))
+          && (!('lastClaimDate' in data) || (data.lastClaimDate is string && data.lastClaimDate.size() <= 32))
           && data.bestScores is map
           && data.resetUnlocked is bool
           && data.updatedAt == request.time;

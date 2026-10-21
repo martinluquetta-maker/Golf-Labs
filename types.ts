@@ -79,6 +79,9 @@ export interface GameState {
   rp?: number;
   rankedWins?: number;
   rankedMatches?: number;
+  dailyStreak?: number;
+  lastLoginDate?: string;
+  lastClaimDate?: string;
   language?: Language;
 }
 

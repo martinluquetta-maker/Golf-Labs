@@ -6,14 +6,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { registerSW } from 'virtual:pwa-register';
+import { pwaUpdateManager } from './utils/pwaUpdateManager';
 
 import './index.css';
 
-// Automatically register service worker for offline Android PWA support
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  registerSW({ immediate: true });
-}
+// Automatically initialize and register service worker with update listeners for Android PWA / TWA
+pwaUpdateManager.init();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

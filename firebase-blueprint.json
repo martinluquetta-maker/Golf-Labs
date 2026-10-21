@@ -45,6 +45,18 @@
           "type": "string",
           "description": "ID of the currently selected/equipped golf ball"
         },
+        "dailyStreak": {
+          "type": "integer",
+          "description": "Current consecutive daily login streak count"
+        },
+        "lastLoginDate": {
+          "type": "string",
+          "description": "Last recorded login date formatted as YYYY-MM-DD"
+        },
+        "lastClaimDate": {
+          "type": "string",
+          "description": "Date when daily login streak reward was last claimed formatted as YYYY-MM-DD"
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",

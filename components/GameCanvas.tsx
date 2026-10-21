@@ -116,6 +116,8 @@ interface GameCanvasProps {
   opponentPlayers?: MultiplayerPlayer[];
   onLivePosition?: (pos: Vector2, vel: Vector2, isMoving: boolean) => void;
   onLiveAim?: (isAiming: boolean, angle?: number, power?: number) => void;
+  initialAimbotEnabled?: boolean;
+  initialTouchControlsEnabled?: boolean;
 }
 
 const TARGET_FPS = 60;
@@ -130,7 +132,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   strokes,
   opponentPlayers = [],
   onLivePosition,
-  onLiveAim
+  onLiveAim,
+  initialAimbotEnabled = true,
+  initialTouchControlsEnabled = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -177,14 +181,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [isDistanceVisible, setIsDistanceVisible] = useState<boolean>(false);
   const [isShotFinished, setIsShotFinished] = useState<boolean>(false);
 
-  // Mobile / Touch controls state variables
-  const [touchControlsEnabled, setTouchControlsEnabled] = useState(false);
+  // Mobile / Touch controls state variables (Enabled by default for mobile & accessible in all views)
+  const [touchControlsEnabled, setTouchControlsEnabled] = useState(initialTouchControlsEnabled);
   const [touchAngle, setTouchAngle] = useState(0); // Angle in radians
   const [touchPower, setTouchPower] = useState(50); // Power percentage (1 to 100)
   const [isBallMoving, setIsBallMoving] = useState(false);
 
   // Mobile Aimbot state
-  const [aimbotEnabled, setAimbotEnabled] = useState(false);
+  const [aimbotEnabled, setAimbotEnabled] = useState(initialAimbotEnabled);
   const [autoAimbot, setAutoAimbot] = useState(true);
   const [aimbotSolution, setAimbotSolution] = useState<AimbotSolution | null>(null);
   const prevMovingRef = useRef(false);
@@ -194,20 +198,28 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const dialDragStartRef = useRef<number>(0);
   const dialAngleStartRef = useRef<number>(0);
 
-  // Auto-detect mobile devices to enable touch controls & aimbot by default
+  // Auto-detect mobile devices or narrow screen to ensure touch controls & aimbot are ready
   useEffect(() => {
-    const checkMobile = () => {
-      const isMobileDevice = typeof window !== 'undefined' && (
-        /Mobi|Android|iPhone|iPad|Macintosh/i.test(navigator.userAgent) && 
-        ('ontouchstart' in window || navigator.maxTouchPoints > 0)
-      );
-      if (isMobileDevice) {
-        setTouchControlsEnabled(true);
-        setAimbotEnabled(true);
-      }
-    };
-    checkMobile();
+    const isMobileDevice = typeof window !== 'undefined' && (
+      window.innerWidth < 900 ||
+      /Mobi|Android|iPhone|iPad|Macintosh/i.test(navigator.userAgent) || 
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0)
+    );
+    if (isMobileDevice) {
+      setTouchControlsEnabled(true);
+      setAimbotEnabled(true);
+    }
   }, []);
+
+  // Run initial aimbot calculation when level loads or aimbot is enabled
+  useEffect(() => {
+    if (aimbotEnabled) {
+      const timer = setTimeout(() => {
+        runAimbotCalculation(true);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [level, aimbotEnabled]);
 
   useEffect(() => {
     const img = new Image();

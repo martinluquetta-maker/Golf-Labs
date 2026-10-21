@@ -17,6 +17,9 @@ import useAudio from "./hooks/useAudio";
 import { getPath } from "./utils/path";
 import InfoDialog from './components/builds/infoDialog.tsx';
 import { GameMenu } from './components/GameMenu';
+import { DailyStreakModal } from './components/DailyStreakModal';
+import { getLocalStreakData, processDailyStreak, DailyStreakData } from './services/streakService';
+import { InAppUpdateBanner } from './components/InAppUpdateBanner';
 import { calculateCoinsEarned, ALL_BALL_IDS, ALL_TRAIL_IDS } from './components/BallStoreData';
 import { 
   getFirebaseServices, 
@@ -166,6 +169,8 @@ const App: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'pending'>('pending');
   const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
   const [isPortrait, setIsPortrait] = useState(false);
+  const [dismissPortrait, setDismissPortrait] = useState(false);
+  const [aimbotGlobalEnabled, setAimbotGlobalEnabled] = useState(true);
 
   // Moderation / Ban status
   const [banStatus, setBanStatus] = useState<{
@@ -174,6 +179,33 @@ const App: React.FC = () => {
     timeLeftFormatted?: string;
   }>({ isBanned: false });
   const [isCheckingBan, setIsCheckingBan] = useState(false);
+
+  // Daily login streak state & reward tracking
+  const [streakData, setStreakData] = useState<DailyStreakData>(() => getLocalStreakData());
+  const [dailyStreakModalOpen, setDailyStreakModalOpen] = useState(false);
+  const [dailyStreakRewardAwarded, setDailyStreakRewardAwarded] = useState<number | undefined>(undefined);
+
+  // Process Daily Login Streak & reward consecutive logins on startup
+  useEffect(() => {
+    try {
+      const result = processDailyStreak();
+      setStreakData(result.updatedData);
+      setGameState(prev => ({
+        ...prev,
+        dailyStreak: result.updatedData.streakCount,
+        lastLoginDate: result.updatedData.lastLoginDate,
+        lastClaimDate: result.updatedData.lastClaimDate,
+        coins: result.rewardClaimedNow ? (prev.coins ?? 100) + result.coinsAwarded : (prev.coins ?? 100),
+      }));
+
+      if (result.rewardClaimedNow && result.coinsAwarded > 0) {
+        setDailyStreakRewardAwarded(result.coinsAwarded);
+        setDailyStreakModalOpen(true);
+      }
+    } catch (e) {
+      console.warn("Daily streak initialization notice:", e);
+    }
+  }, []);
 
   useEffect(() => {
     const checkOrientation = () => {
@@ -365,6 +397,9 @@ const App: React.FC = () => {
                     equippedBallId: cloudProgress.equippedBallId ?? prev.equippedBallId ?? 'classic_white',
                     unlockedTrailIds: mergedTrails,
                     equippedTrailId: cloudProgress.equippedTrailId ?? prev.equippedTrailId ?? 'trail_dust_white',
+                    dailyStreak: Math.max(cloudProgress.dailyStreak ?? 1, prev.dailyStreak ?? 1),
+                    lastLoginDate: cloudProgress.lastLoginDate || prev.lastLoginDate,
+                    lastClaimDate: cloudProgress.lastClaimDate || prev.lastClaimDate,
                   };
                 });
               } else {
@@ -383,6 +418,9 @@ const App: React.FC = () => {
                   equippedBallId: gameState.equippedBallId ?? 'classic_white',
                   unlockedTrailIds: initialTrails,
                   equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
+                  dailyStreak: gameState.dailyStreak ?? streakData.streakCount ?? 1,
+                  lastLoginDate: gameState.lastLoginDate ?? streakData.lastLoginDate ?? '',
+                  lastClaimDate: gameState.lastClaimDate ?? streakData.lastClaimDate ?? '',
                 });
                 setGameState(prev => ({
                   ...prev,
@@ -430,6 +468,9 @@ const App: React.FC = () => {
           equippedBallId: gameState.equippedBallId ?? 'classic_white',
           unlockedTrailIds: isMartin ? ALL_TRAIL_IDS : (gameState.unlockedTrailIds ?? ['trail_dust_white']),
           equippedTrailId: gameState.equippedTrailId ?? 'trail_dust_white',
+          dailyStreak: gameState.dailyStreak ?? streakData.streakCount ?? 1,
+          lastLoginDate: gameState.lastLoginDate ?? streakData.lastLoginDate ?? '',
+          lastClaimDate: gameState.lastClaimDate ?? streakData.lastClaimDate ?? '',
         });
         setSyncStatus('synced');
       } catch (err) {
@@ -1030,17 +1071,7 @@ const App: React.FC = () => {
     return null;
   };
 
-  if (isPortrait) {
-    return (
-      <div className="fixed inset-0 bg-[#3d312a] text-[#faf6ee] flex flex-col items-center justify-center p-8 z-50 text-center font-sans">
-        <Smartphone className="w-20 h-20 mb-8 animate-pulse text-[#b19f8e]" style={{ transform: 'rotate(90deg)' }} />
-        <h2 className="text-3xl font-black mb-4 tracking-tight">Rotate Your Device</h2>
-        <p className="text-[#e2d8ce] max-w-sm text-lg leading-relaxed font-medium">
-          Golf Lab is a physics sandbox designed for landscape displays. Please rotate your device horizontally to play.
-        </p>
-      </div>
-    );
-  }
+
 
   // Active Ban Lockout Screen
   if (banStatus.isBanned && !isMartinUser(user)) {
@@ -1129,6 +1160,23 @@ const App: React.FC = () => {
   return (
     <>
     <div className="w-full h-[calc(100%-100px)] bg-[#3d312a] font-sans overflow-hidden relative rounded-2xl">
+      {isPortrait && !dismissPortrait && (
+        <div className="fixed top-3 left-3 right-3 z-[150] bg-[#1c1815]/95 border border-[#a4c639]/50 text-[#faf6ee] px-4 py-2.5 rounded-2xl shadow-2xl flex items-center justify-between gap-3 backdrop-blur-md animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Smartphone className="w-5 h-5 text-[#a4c639] shrink-0 animate-pulse" style={{ transform: 'rotate(90deg)' }} />
+            <p className="text-xs font-bold leading-tight truncate">
+              {language === 'es' ? 'Gira la pantalla a horizontal para mayor visión, o juega aquí verticalmente.' : 'Rotate to landscape for wider view, or play right here in portrait.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDismissPortrait(true)}
+            className="py-1 px-3 bg-[#a4c639] hover:bg-[#8ea82b] text-stone-950 font-black text-xs rounded-xl shrink-0 cursor-pointer shadow-sm active:scale-95"
+          >
+            OK
+          </button>
+        </div>
+      )}
       {!activeMultiplayerRoom && renderHUD()}
 
       {/* Active Multiplayer Match In-Game HUD Overlay & Post-Match Results */}
@@ -1192,6 +1240,8 @@ const App: React.FC = () => {
           opponentPlayers={opponentPlayers}
           onLiveAim={handleLiveAim}
           onLivePosition={handleLivePosition}
+          initialAimbotEnabled={aimbotGlobalEnabled}
+          initialTouchControlsEnabled={true}
       />
       
       {/* Floating Main Menu Button (Top-Right) */}
@@ -1276,9 +1326,25 @@ const App: React.FC = () => {
             setLanguage(newLang);
             saveLanguage(newLang);
           }}
+          aimbotEnabled={aimbotGlobalEnabled}
+          onToggleAimbot={() => setAimbotGlobalEnabled(prev => !prev)}
+          dailyStreak={gameState.dailyStreak ?? streakData.streakCount ?? 1}
+          onOpenDailyStreak={() => {
+            setDailyStreakRewardAwarded(undefined);
+            setDailyStreakModalOpen(true);
+          }}
         />
       )}
 
+      <DailyStreakModal
+        isOpen={dailyStreakModalOpen}
+        onClose={() => setDailyStreakModalOpen(false)}
+        streakData={streakData}
+        newRewardAwarded={dailyStreakRewardAwarded}
+        language={language}
+      />
+
+      <InAppUpdateBanner language={language} />
       <InfoDialog title="Can you get a hole in one?" goal="Line up your shot and take a swing! Watch out for obstacles and get helpful hints from your personal caddy." onClose={() => {}} />
     </div>
     <div className="fixed bottom-4 left-0 right-0 flex items-center justify-center px-4 z-100">
