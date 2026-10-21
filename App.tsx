@@ -15,7 +15,7 @@ import { CloseIcon } from './components/Icons';
 import Footer from './components/Footer';
 import useAudio from "./hooks/useAudio";
 import { getPath } from "./utils/path";
-import InfoDialog from './components/builds/infoDialog.tsx';
+import { isComputerDevice } from './utils/device';
 import { GameMenu } from './components/GameMenu';
 import { DailyStreakModal } from './components/DailyStreakModal';
 import { getLocalStreakData, processDailyStreak, DailyStreakData } from './services/streakService';
@@ -168,9 +168,10 @@ const App: React.FC = () => {
   const [firebaseConfigured, setFirebaseConfigured] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline' | 'pending'>('pending');
   const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
+  const isComputer = isComputerDevice();
   const [isPortrait, setIsPortrait] = useState(false);
   const [dismissPortrait, setDismissPortrait] = useState(false);
-  const [aimbotGlobalEnabled, setAimbotGlobalEnabled] = useState(true);
+  const [aimbotGlobalEnabled, setAimbotGlobalEnabled] = useState(() => !isComputerDevice());
 
   // Moderation / Ban status
   const [banStatus, setBanStatus] = useState<{
@@ -185,7 +186,7 @@ const App: React.FC = () => {
   const [dailyStreakModalOpen, setDailyStreakModalOpen] = useState(false);
   const [dailyStreakRewardAwarded, setDailyStreakRewardAwarded] = useState<number | undefined>(undefined);
 
-  // Process Daily Login Streak & reward consecutive logins on startup
+  // Process Daily Login Streak & reward consecutive logins on startup (quietly without popups)
   useEffect(() => {
     try {
       const result = processDailyStreak();
@@ -200,7 +201,7 @@ const App: React.FC = () => {
 
       if (result.rewardClaimedNow && result.coinsAwarded > 0) {
         setDailyStreakRewardAwarded(result.coinsAwarded);
-        setDailyStreakModalOpen(true);
+        // Do not auto-open popup on startup - keep game screen clean
       }
     } catch (e) {
       console.warn("Daily streak initialization notice:", e);
@@ -1160,7 +1161,7 @@ const App: React.FC = () => {
   return (
     <>
     <div className="w-full h-[calc(100%-100px)] bg-[#3d312a] font-sans overflow-hidden relative rounded-2xl">
-      {isPortrait && !dismissPortrait && (
+      {!isComputer && isPortrait && !dismissPortrait && (
         <div className="fixed top-3 left-3 right-3 z-[150] bg-[#1c1815]/95 border border-[#a4c639]/50 text-[#faf6ee] px-4 py-2.5 rounded-2xl shadow-2xl flex items-center justify-between gap-3 backdrop-blur-md animate-in slide-in-from-top-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <Smartphone className="w-5 h-5 text-[#a4c639] shrink-0 animate-pulse" style={{ transform: 'rotate(90deg)' }} />
@@ -1240,7 +1241,7 @@ const App: React.FC = () => {
           opponentPlayers={opponentPlayers}
           onLiveAim={handleLiveAim}
           onLivePosition={handleLivePosition}
-          initialAimbotEnabled={aimbotGlobalEnabled}
+          initialAimbotEnabled={!isComputer && aimbotGlobalEnabled}
           initialTouchControlsEnabled={true}
       />
       
@@ -1326,8 +1327,12 @@ const App: React.FC = () => {
             setLanguage(newLang);
             saveLanguage(newLang);
           }}
-          aimbotEnabled={aimbotGlobalEnabled}
-          onToggleAimbot={() => setAimbotGlobalEnabled(prev => !prev)}
+          aimbotEnabled={!isComputer && aimbotGlobalEnabled}
+          onToggleAimbot={() => {
+            if (!isComputer) {
+              setAimbotGlobalEnabled(prev => !prev);
+            }
+          }}
           dailyStreak={gameState.dailyStreak ?? streakData.streakCount ?? 1}
           onOpenDailyStreak={() => {
             setDailyStreakRewardAwarded(undefined);
@@ -1345,7 +1350,6 @@ const App: React.FC = () => {
       />
 
       <InAppUpdateBanner language={language} />
-      <InfoDialog title="Can you get a hole in one?" goal="Line up your shot and take a swing! Watch out for obstacles and get helpful hints from your personal caddy." onClose={() => {}} />
     </div>
     <div className="fixed bottom-4 left-0 right-0 flex items-center justify-center px-4 z-100">
       <Footer

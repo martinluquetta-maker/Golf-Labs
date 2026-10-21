@@ -47,6 +47,7 @@ import { MultiplayerPlayer } from '../services/multiplayerService';
 import { getRankFromRP } from './RankData';
 import { Activity, Gauge, Zap, CheckCircle2, Target, Crosshair, Sparkles, Wand2 } from 'lucide-react';
 import { solveAimbot, AimbotSolution } from '../utils/aimbotSolver';
+import { isComputerDevice } from '../utils/device';
 import { 
   vibratePutt, 
   vibrateCollision, 
@@ -187,8 +188,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const [touchPower, setTouchPower] = useState(50); // Power percentage (1 to 100)
   const [isBallMoving, setIsBallMoving] = useState(false);
 
-  // Mobile Aimbot state
-  const [aimbotEnabled, setAimbotEnabled] = useState(initialAimbotEnabled);
+  const isComputer = isComputerDevice();
+
+  // Mobile Aimbot state - Strictly forbidden on computers/desktops
+  const [aimbotEnabled, setAimbotEnabled] = useState(!isComputer && initialAimbotEnabled);
   const [autoAimbot, setAutoAimbot] = useState(true);
   const [aimbotSolution, setAimbotSolution] = useState<AimbotSolution | null>(null);
   const prevMovingRef = useRef(false);
@@ -200,26 +203,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // Auto-detect mobile devices or narrow screen to ensure touch controls & aimbot are ready
   useEffect(() => {
+    if (isComputer) {
+      setAimbotEnabled(false);
+      return;
+    }
     const isMobileDevice = typeof window !== 'undefined' && (
       window.innerWidth < 900 ||
-      /Mobi|Android|iPhone|iPad|Macintosh/i.test(navigator.userAgent) || 
+      /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || 
       ('ontouchstart' in window || navigator.maxTouchPoints > 0)
     );
     if (isMobileDevice) {
       setTouchControlsEnabled(true);
       setAimbotEnabled(true);
     }
-  }, []);
+  }, [isComputer]);
 
-  // Run initial aimbot calculation when level loads or aimbot is enabled
+  // Run initial aimbot calculation when level loads or aimbot is enabled (mobile only)
   useEffect(() => {
-    if (aimbotEnabled) {
+    if (!isComputer && aimbotEnabled) {
       const timer = setTimeout(() => {
         runAimbotCalculation(true);
       }, 150);
       return () => clearTimeout(timer);
     }
-  }, [level, aimbotEnabled]);
+  }, [level, aimbotEnabled, isComputer]);
 
   useEffect(() => {
     const img = new Image();
@@ -597,8 +604,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   };
 
-  // Mobile Aimbot Solver Execution
+  // Mobile Aimbot Solver Execution (Disabled on computer)
   const runAimbotCalculation = useCallback((apply = true) => {
+    if (isComputer) return null;
     const b = ballRef.current;
     const h = holeRef.current;
     if (!b || !h) return null;
@@ -622,10 +630,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
 
     return sol;
-  }, []);
+  }, [isComputer]);
 
   // One-Tap Mobile Aimbot Strike & Sink
   const handleAimbotFire = () => {
+    if (isComputer) return;
     const b = ballRef.current;
     if (!b || b.sunk || b.isMoving || b.teleportTimer > 0) return;
 
@@ -648,15 +657,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     onStroke();
   };
 
-  // Recalculate Aimbot when enabled or when level / strokes change
+  // Recalculate Aimbot when enabled or when level / strokes change (mobile only)
   useEffect(() => {
-    if (aimbotEnabled) {
+    if (!isComputer && aimbotEnabled) {
       const timer = setTimeout(() => {
         runAimbotCalculation(true);
       }, 90);
       return () => clearTimeout(timer);
     }
-  }, [aimbotEnabled, level, strokes, runAimbotCalculation]);
+  }, [aimbotEnabled, level, strokes, runAimbotCalculation, isComputer]);
 
   // Auto-aim when the ball comes to a complete stop
   useEffect(() => {
@@ -2387,7 +2396,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // ==========================================
     // Render Mobile Aimbot Trajectory Laser & Reticle
     // ==========================================
-    if (aimbotEnabled && aimbotSolution && !b.isMoving && !b.sunk && b.teleportTimer === 0) {
+    if (!isComputer && aimbotEnabled && aimbotSolution && !b.isMoving && !b.sunk && b.teleportTimer === 0) {
       const sol = aimbotSolution;
       const pts = sol.trajectoryPoints;
       const isGreen = sol.isHoleInOne;
@@ -2681,61 +2690,70 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         >
           {/* Mobile Aimbot Command Ribbon */}
           <div className="w-full pb-2 border-b border-[#3d312a]/10 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !aimbotEnabled;
-                  setAimbotEnabled(next);
-                  if (next) runAimbotCalculation(true);
-                }}
-                className={`px-3 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 ${
-                  aimbotEnabled 
-                    ? 'bg-emerald-600 text-white shadow-emerald-700/30 ring-1 ring-emerald-400' 
-                    : 'bg-[#3d312a]/10 text-[#3d312a] hover:bg-[#3d312a]/15'
-                }`}
-              >
-                <Target className="w-3.5 h-3.5" />
-                <span>{aimbotEnabled ? 'AIMBOT: ACTIVE' : 'ENABLE AIMBOT'}</span>
-              </button>
-
-              {aimbotEnabled && (
-                <button
-                  type="button"
-                  onClick={() => runAimbotCalculation(true)}
-                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-950 border border-amber-500/40 rounded-xl text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                >
-                  <Wand2 className="w-3 h-3 text-amber-700" />
-                  <span>Re-Lock</span>
-                </button>
-              )}
-            </div>
-
-            {aimbotEnabled && aimbotSolution && (
-              <div className="flex items-center gap-1.5 text-[11px] font-mono">
-                <span className={`px-2 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider ${
-                  aimbotSolution.isHoleInOne 
-                    ? 'bg-emerald-500/25 text-emerald-900 border border-emerald-500/40 ring-1 ring-emerald-500/20' 
-                    : 'bg-sky-500/20 text-sky-900 border border-sky-500/30'
-                }`}>
-                  {aimbotSolution.isHoleInOne ? '🎯 100% SINK' : `🎯 ${aimbotSolution.confidence}% ACCURACY`}
-                </span>
-                <span className="text-[#5a5045] text-[10px] font-extrabold hidden sm:inline">
-                  {aimbotSolution.description}
-                </span>
+            {isComputer ? (
+              <div className="flex items-center gap-2 text-xs text-stone-600 font-bold bg-stone-200/70 px-3 py-1.5 rounded-xl border border-stone-300">
+                <Target className="w-3.5 h-3.5 text-stone-500" />
+                <span>Aimbot deshabilitado en computador (exclusivo para pantallas táctiles móviles)</span>
               </div>
-            )}
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !aimbotEnabled;
+                      setAimbotEnabled(next);
+                      if (next) runAimbotCalculation(true);
+                    }}
+                    className={`px-3 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 ${
+                      aimbotEnabled 
+                        ? 'bg-emerald-600 text-white shadow-emerald-700/30 ring-1 ring-emerald-400' 
+                        : 'bg-[#3d312a]/10 text-[#3d312a] hover:bg-[#3d312a]/15'
+                    }`}
+                  >
+                    <Target className="w-3.5 h-3.5" />
+                    <span>{aimbotEnabled ? 'AIMBOT: ACTIVE' : 'ENABLE AIMBOT'}</span>
+                  </button>
 
-            {aimbotEnabled && (
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#7a7065] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoAimbot}
-                  onChange={(e) => setAutoAimbot(e.target.checked)}
-                  className="accent-emerald-600 rounded cursor-pointer"
-                />
-                <span>Auto-Lock</span>
-              </label>
+                  {aimbotEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => runAimbotCalculation(true)}
+                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-950 border border-amber-500/40 rounded-xl text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Wand2 className="w-3 h-3 text-amber-700" />
+                      <span>Re-Lock</span>
+                    </button>
+                  )}
+                </div>
+
+                {aimbotEnabled && aimbotSolution && (
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                    <span className={`px-2 py-0.5 rounded-full font-black text-[10px] uppercase tracking-wider ${
+                      aimbotSolution.isHoleInOne 
+                        ? 'bg-emerald-500/25 text-emerald-900 border border-emerald-500/40 ring-1 ring-emerald-500/20' 
+                        : 'bg-sky-500/20 text-sky-900 border border-sky-500/30'
+                    }`}>
+                      {aimbotSolution.isHoleInOne ? '🎯 100% SINK' : `🎯 ${aimbotSolution.confidence}% ACCURACY`}
+                    </span>
+                    <span className="text-[#5a5045] text-[10px] font-extrabold hidden sm:inline">
+                      {aimbotSolution.description}
+                    </span>
+                  </div>
+                )}
+
+                {aimbotEnabled && (
+                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-[#7a7065] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoAimbot}
+                      onChange={(e) => setAutoAimbot(e.target.checked)}
+                      className="accent-emerald-600 rounded cursor-pointer"
+                    />
+                    <span>Auto-Lock</span>
+                  </label>
+                )}
+              </>
             )}
           </div>
 

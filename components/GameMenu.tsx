@@ -23,6 +23,7 @@ import { Globe } from 'lucide-react';
 import { SecretSoundModal } from './SecretSoundModal';
 import { pwaUpdateManager, APP_VERSION } from '../utils/pwaUpdateManager';
 import { getRewardForStreakDay } from '../services/streakService';
+import { isComputerDevice } from '../utils/device';
 
 interface GameMenuProps {
   onStartGame: (levelIndex: number) => void;
@@ -121,6 +122,7 @@ export const GameMenu: React.FC<GameMenuProps> = ({
   const [showRanksModal, setShowRanksModal] = useState(false);
   const [showSecretSoundModal, setShowSecretSoundModal] = useState(false);
 
+  const isComputer = isComputerDevice();
   const currentRank = getRankFromRP(playerRP);
   const rankProg = getRankProgress(playerRP);
 
@@ -543,16 +545,28 @@ export const GameMenu: React.FC<GameMenuProps> = ({
               {/* Aimbot Mobile Status Pill */}
               <button
                 type="button"
-                onClick={onToggleAimbot}
-                className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-950 text-xs font-bold transition-all text-left cursor-pointer"
-                title="Activar o desactivar el asistente de tiro Aimbot"
+                onClick={() => {
+                  if (isComputer) return;
+                  onToggleAimbot();
+                }}
+                disabled={isComputer}
+                className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl border text-xs font-bold transition-all text-left ${
+                  isComputer 
+                    ? 'bg-stone-200/50 border-stone-300 text-stone-400 cursor-not-allowed opacity-75' 
+                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-950 cursor-pointer'
+                }`}
+                title={isComputer ? (language === 'es' ? 'Aimbot deshabilitado en computador' : 'Aimbot disabled on computer') : 'Aimbot Mobile'}
               >
-                <Target className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
-                <span className="truncate">Aimbot Mobile</span>
+                <Target className={`w-4 h-4 ${isComputer ? 'text-stone-400' : 'text-emerald-600 animate-pulse'} shrink-0`} />
+                <span className="truncate">{isComputer ? 'Aimbot (Solo Móvil)' : 'Aimbot Mobile'}</span>
                 <span className={`ml-auto text-[9px] px-1.5 py-0.5 rounded-full font-black ${
-                  aimbotEnabled ? 'bg-emerald-600 text-white' : 'bg-stone-300 text-stone-800'
+                  isComputer 
+                    ? 'bg-stone-300 text-stone-600'
+                    : aimbotEnabled 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-stone-300 text-stone-800'
                 }`}>
-                  {aimbotEnabled ? 'ON' : 'OFF'}
+                  {isComputer ? (language === 'es' ? 'BLOQ PC' : 'BLOCKED') : (aimbotEnabled ? 'ON' : 'OFF')}
                 </span>
               </button>
 
@@ -1810,22 +1824,28 @@ export const GameMenu: React.FC<GameMenuProps> = ({
                       </div>
                     </div>
                     <div>
-                      <button
-                        type="button"
-                        onClick={onToggleAimbot}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          aimbotEnabled ? 'bg-emerald-600' : 'bg-[#3d312a]/25'
-                        }`}
-                        role="switch"
-                        aria-checked={aimbotEnabled}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            aimbotEnabled ? 'translate-x-5' : 'translate-x-0'
+                      {isComputer ? (
+                        <span className="text-[10px] font-black uppercase text-stone-500 bg-stone-200 border border-stone-300 px-2.5 py-1 rounded-lg shrink-0">
+                          {language === 'es' ? 'Bloqueado en PC' : 'Disabled on PC'}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onToggleAimbot}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            aimbotEnabled ? 'bg-emerald-600' : 'bg-[#3d312a]/25'
                           }`}
-                        />
-                      </button>
+                          role="switch"
+                          aria-checked={aimbotEnabled}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              aimbotEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      )}
                     </div>
                   </div>
 
