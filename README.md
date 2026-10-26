@@ -1,1 +1,1 @@
-PRINT "hehehe"
+"hehehe"
